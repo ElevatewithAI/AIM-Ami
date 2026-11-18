@@ -403,3 +403,21 @@ footer .social a:hover{background:var(--blue);border-color:var(--blue);color:#ff
 
 .qname{color:inherit;text-decoration:underline;text-decoration-color:var(--yellow);text-decoration-thickness:2px;text-underline-offset:3px;transition:color .2s}
 .qname:hover{color:var(--blue)}.quote:hover .qname{text-decoration-color:#fff}.quote:hover .qname:hover{color:#fff;text-decoration-color:var(--yellow)}
+
+
+
+.chat-btn { position: relative; }
+.chat-btn[data-unread]::after {
+  content: attr(data-unread);
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #b00020;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+}
+.cw-foot-actions { display: flex; gap: 0.4rem; align-items: center; }
