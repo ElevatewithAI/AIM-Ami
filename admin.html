@@ -81,111 +81,656 @@ details pre{white-space:pre-wrap;font-family:inherit;margin-top:.4rem}
   </main>
 </div>
 <script src="firebase-config.js"></script>
+
 <script type="module">
-const CFG=window.AIM_CONFIG||{},FB=CFG.firebase||{},SDK='https://www.gstatic.com/firebasejs/'+(CFG.sdk||'12.15.0')+'/';
-const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const login=$('#login'),app=$('#app'),loginmsg=$('#loginmsg');
-if(!FB.apiKey||String(FB.apiKey).includes('PASTE')){login.hidden=false;loginmsg.textContent='Firebase is not set up yet. Fill in firebase-config.js first.';$('#signin').disabled=true}
-else{
-const [A,Auth,fs]=await Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-auth.js'),import(SDK+'firebase-firestore.js')]);
-const fbApp=A.initializeApp(FB),ac=CFG.appCheck||{};
-if(ac.siteKey){
-  if(ac.debug)self.FIREBASE_APPCHECK_DEBUG_TOKEN=true;
-  const chk=await import(SDK+'firebase-app-check.js');
-  chk.initializeAppCheck(fbApp,{
-    provider: new chk.ReCaptchaEnterpriseProvider(ac.siteKey),
-    isTokenAutoRefreshEnabled:true
-  });
-}
-const auth=Auth.getAuth(fbApp),db=fs.getFirestore(fbApp);
-let user=null,chats=[],sel=null,unsubMsgs=null,unsubList=null,unsubChatDoc=null,online=false,beat=null,soundOn=true,first=true,audio=null,flash=null,adminTypingTimer=null;
-const ADMIN=(CFG.adminEmail||'').toLowerCase();
+const CFG = window.AIM_CONFIG || {};
+const FB = CFG.firebase || {};
 
-$('#signin').onclick=()=>Auth.signInWithPopup(auth,new Auth.GoogleAuthProvider()).catch(e=>{loginmsg.textContent='Sign in failed: '+(e.code||e.message)});
-$('#out').onclick=async()=>{await setOnline(false);Auth.signOut(auth)};
-Auth.onAuthStateChanged(auth,u=>{
-  if(!u){user=null;app.hidden=true;login.hidden=false;cleanup();return}
-  if((u.email||'').toLowerCase()!==ADMIN||!u.emailVerified){loginmsg.textContent='This account is not allowed here.';Auth.signOut(auth);return}
-  user=u;login.hidden=true;app.hidden=false;loginmsg.textContent='';start()});
+const SDK = 'https://www.gstatic.com/firebasejs/' +
+  (CFG.sdk || '12.15.0') + '/';
 
-function cleanup(){unsubList&&unsubList();unsubMsgs&&unsubMsgs();unsubChatDoc&&unsubChatDoc();clearInterval(beat);unsubList=unsubMsgs=unsubChatDoc=null}
-function start(){
-  cleanup();first=true;
-  unsubList=fs.onSnapshot(fs.query(fs.collection(db,'chats'),fs.orderBy('lastMessageAt','desc'),fs.limit(60)),snap=>{
-    chats=snap.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));
-    if(!first)snap.docChanges().forEach(ch=>{if(ch.type==='added'||ch.type==='modified'){const d=ch.doc.data({serverTimestamps:'estimate'});
-      if(d.unreadAdmin&&!(sel===ch.doc.id&&document.hasFocus()))alertNew(d,ch.type==='added')}});
-    first=false;renderList();
-    if(!sel&&location.hash.length>1&&chats.some(c=>c.id===location.hash.slice(1)))openChat(location.hash.slice(1));
-    const cur=chats.find(c=>c.id===sel);if(cur)renderInfo(cur)},e=>{$('#list').innerHTML='<div class="empty">Could not load chats. Check the Firestore rules.</div>';console.warn(e)})}
-const ms=t=>t&&t.toMillis?t.toMillis():0;
-const ago=t=>{const s=Math.max(0,(Date.now()-ms(t))/1000);return s<60?'now':s<3600?Math.floor(s/60)+' min':s<86400?Math.floor(s/3600)+' h':Math.floor(s/86400)+' d'};
-function renderList(){
-  const el=$('#list');
-  if(!chats.length){el.innerHTML='<div class="empty">No conversations yet.</div>';return}
-  el.innerHTML=chats.map(c=>`<button class="item${c.id===sel?' sel':''}" data-id="${c.id}"><b><span>${esc(c.name)}</span><span>${c.unreadAdmin?'<span class="dot"></span>':''}</span></b><small>${esc(c.email)}</small><small>${ago(c.lastMessageAt)}${c.status==='closed'?' · closed':''}</small></button>`).join('');
-  el.querySelectorAll('.item').forEach(b=>b.onclick=()=>openChat(b.dataset.id))}
-function renderInfo(c){
-  const i=$('#info');i.hidden=false;
-  i.innerHTML=`<div><h3>${esc(c.name)}</h3><p><a href="mailto:${esc(c.email)}">${esc(c.email)}</a> · from ${esc(c.page||'site')} · started ${ago(c.createdAt)} ago</p></div><button class="btn alt" id="toggle" type="button">${c.status==='closed'?'Reopen chat':'Close chat'}</button>`;
-  $('#toggle').onclick=()=>fs.updateDoc(fs.doc(db,'chats',c.id),{status:c.status==='closed'?'open':'closed'});
-  const d=$('#ai');d.hidden=!c.aiTranscript;$('#aipre').textContent=c.aiTranscript||''}
+const $ = s => document.querySelector(s);
 
-function openChat(id){
-  sel=id;unsubMsgs&&unsubMsgs();unsubChatDoc&&unsubChatDoc();history.replaceState(null,'','#'+id);
-  $('#reply').hidden=false;renderList();
-  const c=chats.find(x=>x.id===id);if(c)renderInfo(c);
-  fs.updateDoc(fs.doc(db,'chats',id),{unreadAdmin:false}).catch(()=>{});
-  
-  unsubMsgs=fs.onSnapshot(fs.query(fs.collection(db,'chats',id,'messages'),fs.orderBy('createdAt','asc')),snap=>{
-    const box=$('#msgs');
-    box.innerHTML=snap.docs.map(d=>{const m=d.data({serverTimestamps:'estimate'});
-      return `<div class="m ${m.from==='admin'?'a':'v'}">${esc(m.text)}<small>${m.from==='admin'?'You':'Visitor'} · ${ago(m.createdAt)}</small></div>`}).join('')||'<div class="empty">No messages yet.</div>';
-    box.scrollTop=box.scrollHeight;
-    if(document.hasFocus())fs.updateDoc(fs.doc(db,'chats',id),{unreadAdmin:false}).catch(()=>{})});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;'
+}[c]));
 
-  unsubChatDoc=fs.onSnapshot(fs.doc(db,'chats',id),snap=>{
-    if(snap.exists()){
-      const dat=snap.data();
-      let typ=$('#typing-indicator');
-      if(!typ){typ=document.createElement('div');typ.id='typing-indicator';typ.style.cssText='padding:0.3rem 1.2rem;font-size:0.8rem;color:#666;font-style:italic;';$('#msgs').after(typ)}
-      typ.textContent=dat.typingVisitor?'Visitor is typing...':'';
+const login = $('#login');
+const app = $('#app');
+const loginmsg = $('#loginmsg');
+
+if (
+  !FB.apiKey ||
+  !FB.projectId ||
+  String(FB.apiKey).includes('PASTE')
+) {
+  login.hidden = false;
+  loginmsg.textContent =
+    'Firebase is not set up yet. Fill in firebase-config.js first.';
+  $('#signin').disabled = true;
+
+} else {
+
+  const [A, Auth, fs] = await Promise.all([
+    import(SDK + 'firebase-app.js'),
+    import(SDK + 'firebase-auth.js'),
+    import(SDK + 'firebase-firestore.js')
+  ]);
+
+  const fbApp = A.initializeApp(FB);
+  const ac = CFG.appCheck || {};
+
+  if (ac.siteKey) {
+    if (ac.debug) {
+      self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
     }
+
+    const chk = await import(SDK + 'firebase-app-check.js');
+
+    chk.initializeAppCheck(fbApp, {
+      provider: new chk.ReCaptchaEnterpriseProvider(ac.siteKey),
+      isTokenAutoRefreshEnabled: true
+    });
+  }
+
+  const auth = Auth.getAuth(fbApp);
+  const db = fs.getFirestore(fbApp);
+
+  let user = null;
+  let chats = [];
+  let sel = null;
+
+  let unsubMsgs = null;
+  let unsubList = null;
+  let unsubChatDoc = null;
+
+  let online = false;
+  let beat = null;
+
+  let soundOn = true;
+  let first = true;
+  let audio = null;
+  let flash = null;
+  let adminTypingTimer = null;
+
+  const ADMIN = (CFG.adminEmail || '').toLowerCase();
+
+  /* Authentication */
+
+  $('#signin').onclick = () => {
+    Auth.signInWithPopup(
+      auth,
+      new Auth.GoogleAuthProvider()
+    ).catch(e => {
+      loginmsg.textContent =
+        'Sign in failed: ' + (e.code || e.message);
+    });
+  };
+
+  $('#out').onclick = async () => {
+    await setOnline(false);
+    await Auth.signOut(auth);
+  };
+
+  Auth.onAuthStateChanged(auth, u => {
+    if (!u) {
+      user = null;
+      app.hidden = true;
+      login.hidden = false;
+      cleanup();
+      return;
+    }
+
+    if (
+      (u.email || '').toLowerCase() !== ADMIN ||
+      !u.emailVerified
+    ) {
+      loginmsg.textContent = 'This account is not allowed here.';
+      Auth.signOut(auth);
+      return;
+    }
+
+    user = u;
+
+    login.hidden = true;
+    app.hidden = false;
+    loginmsg.textContent = '';
+
+    start();
   });
-  $('#txt').focus()}
 
-async function send(){
-  const t=$('#txt').value.trim();if(!t||!sel)return;$('#txt').value='';
-  await fs.addDoc(fs.collection(db,'chats',sel,'messages'),{from:'admin',uid:user.uid,text:t,createdAt:fs.serverTimestamp()});
-  await fs.updateDoc(fs.doc(db,'chats',sel),{lastMessageAt:fs.serverTimestamp(),unreadAdmin:false,status:'open',typingAdmin:false})}
+  /* Cleanup */
 
-$('#reply').onsubmit=e=>{e.preventDefault();send()};
-$('#txt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
-$('#txt').oninput=()=>{
-  if(!sel)return;
-  clearTimeout(adminTypingTimer);
-  fs.updateDoc(fs.doc(db,'chats',sel),{typingAdmin:true}).catch(()=>{});
-  adminTypingTimer=setTimeout(()=>{
-    fs.updateDoc(fs.doc(db,'chats',sel),{typingAdmin:false}).catch(()=>{});
-  },2000);
-};
+  function cleanup() {
+    if (unsubList) unsubList();
+    if (unsubMsgs) unsubMsgs();
+    if (unsubChatDoc) unsubChatDoc();
 
-async function setOnline(v){
-  online=v;clearInterval(beat);
-  try{await fs.setDoc(fs.doc(db,'presence','admin'),{online:v,lastSeen:fs.serverTimestamp()},{merge:true})}catch(e){console.warn(e)}
-  if(v)beat=setInterval(()=>fs.setDoc(fs.doc(db,'presence','admin'),{online:true,lastSeen:fs.serverTimestamp()},{merge:true}).catch(()=>{}),30000);
-  $('#pstate').className='pill'+(v?' on':'');$('#pstate span').textContent=v?'Online':'Offline';$('#online').textContent=v?'Go offline':'Go online'}
-$('#online').onclick=()=>setOnline(!online);
-$('#sound').onclick=()=>{soundOn=!soundOn;$('#sound').textContent=soundOn?'Sound on':'Sound off'};
-$('#notif').onclick=async()=>{if('Notification' in window){const p=await Notification.requestPermission();$('#notif').textContent=p==='granted'?'Alerts on':'Alerts blocked'}};
-function beep(){try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();const o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(.001,audio.currentTime);g.gain.exponentialRampToValueAtTime(.25,audio.currentTime+.02);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.5);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+.55)}catch(e){}}
-function alertNew(d,isNew){
-  if(soundOn)beep();
-  const base=document.title.replace(/^\(\d+\) /,'');let n=0;clearInterval(flash);
-  flash=setInterval(()=>{document.title=(n++%2?'':'(!) ')+(isNew?'New chat: ':'New message: ')+d.name;if(document.hasFocus()){clearInterval(flash);document.title=base}},900);
-  if('Notification' in window&&Notification.permission==='granted'){try{new Notification(isNew?'New live chat':'New message',{body:d.name})}catch(e){}}}
-window.addEventListener('focus',()=>{clearInterval(flash);document.title=document.title.replace(/^\(!\) /,'').replace(/^New (chat|message): .*/,'Live chat admin | AIM-Ami')});
+    clearInterval(beat);
+    clearTimeout(adminTypingTimer);
+    clearInterval(flash);
+
+    unsubList = null;
+    unsubMsgs = null;
+    unsubChatDoc = null;
+  }
+
+  /* Load conversations */
+
+  function start() {
+    cleanup();
+
+    first = true;
+
+    unsubList = fs.onSnapshot(
+      fs.query(
+        fs.collection(db, 'chats'),
+        fs.orderBy('lastMessageAt', 'desc'),
+        fs.limit(60)
+      ),
+
+      snap => {
+
+        chats = snap.docs.map(d => ({
+          id: d.id,
+          ...d.data({
+            serverTimestamps: 'estimate'
+          })
+        }));
+
+        if (!first) {
+          snap.docChanges().forEach(ch => {
+
+            if (
+              ch.type === 'added' ||
+              ch.type === 'modified'
+            ) {
+              const d = ch.doc.data({
+                serverTimestamps: 'estimate'
+              });
+
+              if (
+                d.unreadAdmin &&
+                !(sel === ch.doc.id && document.hasFocus())
+              ) {
+                alertNew(d, ch.type === 'added');
+              }
+            }
+          });
+        }
+
+        first = false;
+
+        renderList();
+
+        if (
+          !sel &&
+          location.hash.length > 1 &&
+          chats.some(c => c.id === location.hash.slice(1))
+        ) {
+          openChat(location.hash.slice(1));
+        }
+
+        const cur = chats.find(c => c.id === sel);
+
+        if (cur) renderInfo(cur);
+
+      },
+
+      e => {
+        $('#list').innerHTML =
+          '<div class="empty">Could not load chats. Check the Firestore rules.</div>';
+
+        console.warn('Chat list error:', e);
+      }
+    );
+  }
+
+  /* Time formatting */
+
+  const ms = t => t && t.toMillis ? t.toMillis() : 0;
+
+  const ago = t => {
+    const s = Math.max(
+      0,
+      (Date.now() - ms(t)) / 1000
+    );
+
+    return s < 60
+      ? 'now'
+      : s < 3600
+        ? Math.floor(s / 60) + ' min'
+        : s < 86400
+          ? Math.floor(s / 3600) + ' h'
+          : Math.floor(s / 86400) + ' d';
+  };
+
+  /* Conversation list */
+
+  function renderList() {
+    const el = $('#list');
+
+    if (!chats.length) {
+      el.innerHTML =
+        '<div class="empty">No conversations yet.</div>';
+      return;
+    }
+
+    el.innerHTML = chats.map(c => `
+      <button class="item${c.id === sel ? ' sel' : ''}"
+        data-id="${esc(c.id)}">
+
+        <b>
+          <span>${esc(c.name || 'Visitor')}</span>
+          <span>${c.unreadAdmin
+            ? '<span class="dot"></span>'
+            : ''}
+          </span>
+        </b>
+
+        <small>${esc(c.email || '')}</small>
+
+        <small>
+          ${ago(c.lastMessageAt)}
+          ${c.status === 'closed' ? ' · closed' : ''}
+        </small>
+
+      </button>
+    `).join('');
+
+    el.querySelectorAll('.item').forEach(b => {
+      b.onclick = () => openChat(b.dataset.id);
+    });
+  }
+
+  /* Visitor information */
+
+  function renderInfo(c) {
+    const i = $('#info');
+
+    i.hidden = false;
+
+    i.innerHTML = `
+      <div>
+        <h3>${esc(c.name || 'Visitor')}</h3>
+
+        <p>
+          <a href="mailto:${esc(c.email || '')}">
+            ${esc(c.email || '')}
+          </a>
+          · from ${esc(c.page || 'site')}
+          · started ${ago(c.createdAt)} ago
+        </p>
+      </div>
+
+      <button class="btn alt" id="toggle" type="button">
+        ${c.status === 'closed' ? 'Reopen chat' : 'Close chat'}
+      </button>
+    `;
+
+    $('#toggle').onclick = async () => {
+      try {
+        await fs.updateDoc(
+          fs.doc(db, 'chats', c.id),
+          {
+            status: c.status === 'closed' ? 'open' : 'closed',
+            typingAdmin: false,
+            lastMessageAt: fs.serverTimestamp()
+          }
+        );
+      } catch (e) {
+        console.warn('Could not change chat status:', e);
+      }
+    };
+
+    const d = $('#ai');
+
+    d.hidden = !c.aiTranscript;
+
+    $('#aipre').textContent = c.aiTranscript || '';
+  }
+
+  /* Open conversation */
+
+  function openChat(id) {
+    sel = id;
+
+    if (unsubMsgs) unsubMsgs();
+    if (unsubChatDoc) unsubChatDoc();
+
+    clearTimeout(adminTypingTimer);
+
+    history.replaceState(null, '', '#' + id);
+
+    $('#reply').hidden = false;
+
+    renderList();
+
+    const c = chats.find(x => x.id === id);
+
+    if (c) renderInfo(c);
+
+    fs.updateDoc(
+      fs.doc(db, 'chats', id),
+      { unreadAdmin: false }
+    ).catch(() => {});
+
+    /* Messages */
+
+    unsubMsgs = fs.onSnapshot(
+      fs.query(
+        fs.collection(db, 'chats', id, 'messages'),
+        fs.orderBy('createdAt', 'asc')
+      ),
+
+      snap => {
+        const box = $('#msgs');
+
+        box.innerHTML = snap.docs.map(d => {
+          const m = d.data({
+            serverTimestamps: 'estimate'
+          });
+
+          return `
+            <div class="m ${m.from === 'admin' ? 'a' : 'v'}">
+              ${esc(m.text || '')}
+              <small>
+                ${m.from === 'admin' ? 'You' : 'Visitor'}
+                · ${ago(m.createdAt)}
+              </small>
+            </div>
+          `;
+        }).join('') ||
+          '<div class="empty">No messages yet.</div>';
+
+        box.scrollTop = box.scrollHeight;
+
+        if (document.hasFocus()) {
+          fs.updateDoc(
+            fs.doc(db, 'chats', id),
+            { unreadAdmin: false }
+          ).catch(() => {});
+        }
+      },
+
+      e => console.warn('Message listener error:', e)
+    );
+
+    /* Visitor typing and chat status */
+
+    unsubChatDoc = fs.onSnapshot(
+      fs.doc(db, 'chats', id),
+
+      snap => {
+        if (!snap.exists()) return;
+
+        const dat = snap.data();
+
+        let typ = $('#typing-indicator');
+
+        if (!typ) {
+          typ = document.createElement('div');
+
+          typ.id = 'typing-indicator';
+
+          typ.style.cssText =
+            'padding:0.3rem 1.2rem;font-size:0.8rem;color:#666;font-style:italic;';
+
+          $('#msgs').after(typ);
+        }
+
+        typ.textContent = dat.typingVisitor
+          ? 'Visitor is typing...'
+          : '';
+
+        // Update chat information when status changes.
+
+        const current = chats.find(x => x.id === id);
+
+        if (current) {
+          current.status = dat.status;
+          renderInfo(current);
+        }
+      },
+
+      e => console.warn('Chat status listener error:', e)
+    );
+
+    $('#txt').focus();
+  }
+
+  /* Send admin message */
+
+  async function send() {
+    const t = $('#txt').value.trim();
+    const id = sel;
+
+    if (!t || !id || !user) return;
+
+    $('#txt').value = '';
+
+    try {
+      await fs.addDoc(
+        fs.collection(db, 'chats', id, 'messages'),
+        {
+          from: 'admin',
+          uid: user.uid,
+          text: t,
+          createdAt: fs.serverTimestamp()
+        }
+      );
+
+      await fs.updateDoc(
+        fs.doc(db, 'chats', id),
+        {
+          lastMessageAt: fs.serverTimestamp(),
+          unreadAdmin: false,
+          status: 'open',
+          typingAdmin: false
+        }
+      );
+
+    } catch (e) {
+      console.error('Admin message error:', e);
+
+      alert('Message could not be sent. Please try again.');
+    }
+  }
+
+  $('#reply').onsubmit = e => {
+    e.preventDefault();
+    send();
+  };
+
+  $('#txt').onkeydown = e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  /* Admin typing indicator */
+
+  $('#txt').oninput = () => {
+    if (!sel) return;
+
+    const id = sel;
+
+    clearTimeout(adminTypingTimer);
+
+    fs.updateDoc(
+      fs.doc(db, 'chats', id),
+      { typingAdmin: true }
+    ).catch(() => {});
+
+    adminTypingTimer = setTimeout(() => {
+      fs.updateDoc(
+        fs.doc(db, 'chats', id),
+        { typingAdmin: false }
+      ).catch(() => {});
+    }, 2000);
+  };
+
+  /* Online / Offline presence */
+
+  async function setOnline(v) {
+    online = v;
+
+    clearInterval(beat);
+
+    try {
+      await fs.setDoc(
+        fs.doc(db, 'presence', 'admin'),
+        {
+          online: v,
+          lastSeen: fs.serverTimestamp()
+        },
+        { merge: true }
+      );
+
+    } catch (e) {
+      console.warn('Presence update error:', e);
+    }
+
+    if (v) {
+      beat = setInterval(() => {
+        fs.setDoc(
+          fs.doc(db, 'presence', 'admin'),
+          {
+            online: true,
+            lastSeen: fs.serverTimestamp()
+          },
+          { merge: true }
+        ).catch(() => {});
+      }, 30000);
+    }
+
+    $('#pstate').className = 'pill' + (v ? ' on' : '');
+
+    $('#pstate span').textContent =
+      v ? 'Online' : 'Offline';
+
+    $('#online').textContent =
+      v ? 'Go offline' : 'Go online';
+  }
+
+  $('#online').onclick = () => setOnline(!online);
+
+  /* Admin sound */
+
+  $('#sound').onclick = () => {
+    soundOn = !soundOn;
+
+    $('#sound').textContent =
+      soundOn ? 'Sound on' : 'Sound off';
+  };
+
+  /* Browser notifications */
+
+  $('#notif').onclick = async () => {
+    if (!('Notification' in window)) return;
+
+    const p = await Notification.requestPermission();
+
+    $('#notif').textContent =
+      p === 'granted' ? 'Alerts on' : 'Alerts blocked';
+  };
+
+  /* Incoming message sound */
+
+  function beep() {
+    try {
+      audio = audio || new (
+        window.AudioContext || window.webkitAudioContext
+      )();
+
+      if (audio.state === 'suspended') {
+        audio.resume();
+      }
+
+      const o = audio.createOscillator();
+      const g = audio.createGain();
+
+      o.type = 'sine';
+      o.frequency.value = 880;
+
+      g.gain.setValueAtTime(.001, audio.currentTime);
+
+      g.gain.exponentialRampToValueAtTime(
+        .25,
+        audio.currentTime + .02
+      );
+
+      g.gain.exponentialRampToValueAtTime(
+        .001,
+        audio.currentTime + .5
+      );
+
+      o.connect(g);
+      g.connect(audio.destination);
+
+      o.start();
+      o.stop(audio.currentTime + .55);
+
+    } catch (e) {
+      console.warn('Admin sound error:', e);
+    }
+  }
+
+  /* Incoming chat alerts */
+
+  function alertNew(d, isNew) {
+    if (soundOn) beep();
+
+    const base = document.title.replace(/^\(\d+\) /, '');
+
+    let n = 0;
+
+    clearInterval(flash);
+
+    flash = setInterval(() => {
+      document.title =
+        (n++ % 2 ? '' : '(!) ') +
+        (isNew ? 'New chat: ' : 'New message: ') +
+        (d.name || 'Visitor');
+
+      if (document.hasFocus()) {
+        clearInterval(flash);
+        document.title = base;
+      }
+
+    }, 900);
+
+    if (
+      'Notification' in window &&
+      Notification.permission === 'granted'
+    ) {
+      try {
+        new Notification(
+          isNew ? 'New live chat' : 'New message',
+          {
+            body: d.name || 'A visitor sent a message.'
+          }
+        );
+      } catch (e) {}
+    }
+  }
+
+  /* Reset title when admin returns */
+
+  window.addEventListener('focus', () => {
+    clearInterval(flash);
+
+    document.title = document.title
+      .replace(/^\(!\) /, '')
+      .replace(/^New (chat|message): .*/, 'Live chat admin | AIM-Ami');
+  });
+
 }
 </script>
+
 </body>
 </html>
