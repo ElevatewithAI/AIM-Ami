@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Chat check | AIM-Ami</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:760px;margin:2rem auto;padding:0 1rem;color:#222;line-height:1.5}
+h1{font-size:1.5rem}.row{border:1px solid #e1e6f5;border-radius:12px;padding:.8rem 1rem;margin:.6rem 0}
+.ok b{color:#0a7a2f}.bad b{color:#b00020}.wait b{color:#777}.hint{color:#555;font-size:.9rem;margin-top:.3rem}
+code{background:#f3f5fc;padding:.1rem .35rem;border-radius:6px;word-break:break-all}
+button{font:inherit;font-weight:600;background:#14161f;color:#fff;border:0;border-radius:999px;padding:.6rem 1.2rem;cursor:pointer;margin:.3rem .4rem .3rem 0}button:hover{background:#1F4BFF}
+</style></head><body>
+<h1>Chat check</h1>
+<p>Run this on your live site address (not a file on your computer). It tests each part of the chat and tells you which one is failing.</p>
+<button id="run" type="button">Run checks</button><button id="mail" type="button">Send test email (form data)</button><button id="mailjson" type="button">Send test email (JSON)</button>
+<div id="out"></div>
+<script src="firebase-config.js"></script>
+<script type="module">
+const CFG=window.AIM_CONFIG||{},FB=CFG.firebase||{},SDK='https://www.gstatic.com/firebasejs/'+(CFG.sdk||'12.15.0')+'/',out=document.getElementById('out');
+const row=(t)=>{const d=document.createElement('div');d.className='row wait';d.innerHTML='<b>...</b> '+t;out.appendChild(d);return(ok,msg,hint)=>{d.className='row '+(ok?'ok':'bad');d.innerHTML='<b>'+(ok?'Pass':'Fail')+'</b> '+t+(msg?': <code></code>':'')+(hint&&!ok?'<div class="hint">'+hint+'</div>':'');if(msg)d.querySelector('code').textContent=msg}};
+const code=e=>e&&(e.code||e.message)||String(e);
+document.getElementById('run').onclick=async()=>{
+  out.innerHTML='';
+  let r=row('Page address');const o=location.origin;
+  r(location.protocol==='https:'||location.hostname==='localhost',o,'Open this page from your https:// site address. A file on your computer cannot use Firebase sign-in or reCAPTCHA.');
+  r=row('Firebase settings');const ok=!!(FB.apiKey&&FB.projectId&&!String(FB.apiKey).includes('PASTE'));r(ok,FB.projectId,'Fill in firebase-config.js.');if(!ok)return;
+  let m,app,auth,fs,chk;
+  r=row('Load Firebase');try{m=await Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-auth.js'),import(SDK+'firebase-firestore.js')]);app=m[0].initializeApp(FB);auth=m[1].getAuth(app);fs=m[2];r(true,'SDK '+(CFG.sdk||''))}catch(e){r(false,code(e),'The browser could not load Firebase from gstatic.com. Check your connection or an ad blocker.');return}
+  const ac=CFG.appCheck||{};
+  if(ac.siteKey){r=row('App Check (reCAPTCHA)');try{chk=await import(SDK+'firebase-app-check.js');const ap=chk.initializeAppCheck(app,{provider:new chk.ReCaptchaEnterpriseProvider(ac.siteKey),isTokenAutoRefreshEnabled:true});const t=await chk.getToken(ap);r(!!t.token,'token received')}catch(e){r(false,code(e),'Check that the reCAPTCHA key is a reCAPTCHA Enterprise key (your chat uses the Enterprise provider), that this site address is listed in the key\'s domains, and that your web app is registered in Firebase > App Check with the matching secret key.')}}
+  r=row('Anonymous sign-in (used by live chat)');try{await m[1].signInAnonymously(auth);r(true,'uid '+auth.currentUser.uid)}catch(e){r(false,code(e),'In Firebase > Authentication > Sign-in method, enable <b>Anonymous</b>. If the error mentions App Check, see the App Check step.');}
+  r=row('Firestore: read agent status');try{await fs.getDoc(fs.doc(fs.getFirestore(app),'presence','admin'));r(true,'read ok')}catch(e){r(false,code(e),'Create the Firestore database (Build > Firestore Database) and publish the rules from firestore.rules.')}
+  r=row('Firestore: create a chat');try{const db=fs.getFirestore(app),ref=await fs.addDoc(fs.collection(db,'chats'),{uid:auth.currentUser.uid,name:'Diagnostic test',email:'test@example.com',createdAt:fs.serverTimestamp(),lastMessageAt:fs.serverTimestamp(),status:'open',unreadAdmin:true,page:'chat-check.html',aiTranscript:''});await fs.updateDoc(ref,{status:'closed',unreadAdmin:true});r(true,'created '+ref.id+' (you will see it as closed in the admin page)')}catch(e){r(false,code(e),'Usually the rules are missing or not published. Paste firestore.rules into Firebase > Firestore > Rules and publish.')}
+  r=row('Aima (Gemini through Firebase AI Logic)');try{const ai=await import(SDK+'firebase-ai.js');const model=ai.getGenerativeModel(ai.getAI(app,{backend:new ai.GoogleAIBackend()}),{model:CFG.aiModel||'gemini-2.5-flash'});const res=await model.generateContent('Reply with the single word ok');r(true,res.response.text().slice(0,40))}catch(e){r(false,code(e),'Open Firebase > AI Logic and finish setup with the Gemini Developer API. If the error mentions App Check, register it first. If it says the model was not found, change aiModel in firebase-config.js. If it mentions quota or 429, the free limit was reached.')}
+};
+const FORM=(CFG.liveAgentFormUrl)||'https://formspree.io/f/mqpqqwbo';
+async function testMail(kind){
+  const r=row('Formspree test email ('+kind+') to '+FORM.split('/').pop());
+  const fields={name:'Chat check',email:'test@example.com',_subject:'Live agent request: test ('+kind+')',message:'Test of the live agent email using the '+kind+' style. If you got this, notifications work.'};
+  try{
+    let opts;
+    if(kind==='form data'){const fd=new FormData();Object.entries(fields).forEach(([k,v])=>fd.append(k,v));opts={method:'POST',body:fd,headers:{Accept:'application/json'}}}
+    else opts={method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(fields)};
+    const x=await fetch(FORM,opts),txt=await x.text();
+    r(x.ok,'HTTP '+x.status+' '+txt.slice(0,300),'Formspree refused it. Read the message above: it names the problem (for example the form does not exist, needs confirming, or has reCAPTCHA or domain restrictions turned on).');
+  }catch(e){r(false,code(e),'The request was blocked before reaching Formspree (network, an ad blocker, or CORS).')}}
+document.getElementById('mail').onclick=()=>testMail('form data');
+document.getElementById('mailjson').onclick=()=>testMail('JSON');
+</script></body></html>
