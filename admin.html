@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Live chat admin | AIM-Ami</title>
-<!-- Google Analytics: paste your script here if you want admin visits tracked (not recommended) -->
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 <style>
 :root{--ink:#14161f;--blue:#1F4BFF;--yellow:#FFD60A;--grey:#f3f5fc;--line:#e1e6f5}
 *{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{font-family:'Inter',system-ui,sans-serif;color:#222;background:#fff;line-height:1.5}
 h1,h2,h3{font-family:'Space Grotesk','Inter',sans-serif;color:var(--ink);letter-spacing:-.02em}
@@ -74,7 +74,7 @@ details pre{white-space:pre-wrap;font-family:inherit;margin-top:.4rem}
     <div id="list" aria-label="Conversations"></div>
     <div id="conv">
       <div id="info" hidden></div>
-      <details id="ai" hidden><summary>Assistant conversation before the chat started</summary><pre id="aipre"></pre></details>
+      <details id="ai" hidden><summary>Conversation with Aima before the chat started</summary><pre id="aipre"></pre></details>
       <div id="msgs"><div class="empty">Select a conversation. Keep this tab open while you are online.</div></div>
       <form id="reply" hidden><textarea id="txt" placeholder="Write a reply. Enter sends, Shift+Enter adds a line." maxlength="2000"></textarea><button class="btn" type="submit">Send</button></form>
     </div>

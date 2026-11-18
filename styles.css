@@ -400,3 +400,6 @@ footer .social a:hover{background:var(--blue);border-color:var(--blue);color:#ff
 .chat-panel[data-view="form"] .cw-form{display:block}
 .chat-btn.cw-unread .chat-dot{width:18px;height:18px;top:-3px;right:-3px;animation:chatring 1.4s infinite}
 @media(max-width:560px){.chat-panel{position:fixed;left:.6rem;right:.6rem;bottom:5.4rem;width:auto;height:min(72vh,580px)}.cw-foot span{display:none}}
+
+.qname{color:inherit;text-decoration:underline;text-decoration-color:var(--yellow);text-decoration-thickness:2px;text-underline-offset:3px;transition:color .2s}
+.qname:hover{color:var(--blue)}.quote:hover .qname{text-decoration-color:#fff}.quote:hover .qname:hover{color:#fff;text-decoration-color:var(--yellow)}
