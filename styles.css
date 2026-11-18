@@ -409,3 +409,17 @@ footer .social a:hover{background:var(--blue);border-color:var(--blue);color:#ff
 .cw-foot-actions { display: flex; gap: 0.5rem; align-items: center; }
 .cw-save { background: #fff; color: var(--ink); border: 1px solid var(--line); font-size: 0.8rem; padding: 0.3rem 0.7rem; border-radius: 999px; }
 .cw-save:hover { background: var(--grey); }
+
+/* ===== Append this to the END of styles.css ===== */
+
+/* Footer: buttons on ONE line, disclaimer on its own single line underneath */
+.cw-foot{flex-direction:column;align-items:stretch;gap:.45rem;padding:.5rem .9rem .75rem}
+.cw-foot-actions{display:flex;flex-wrap:nowrap;align-items:center;gap:.5rem}
+.cw-human,.cw-save{flex:0 0 auto;white-space:nowrap;font:600 .78rem 'Inter',sans-serif;line-height:1.2;padding:.3rem .8rem;border:1.5px solid var(--ink);border-radius:999px;background:none;color:var(--ink);cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.cw-human:hover,.cw-save:hover{background:var(--blue);border-color:var(--blue);color:#fff}
+.cw-foot span{display:block;white-space:nowrap;font-size:.68rem;color:#777}
+@media(max-width:560px){.cw-foot span{display:block}}
+
+/* Unread badge: blue, matches the site; hide the yellow dot while it shows */
+.cw-badge{background:var(--blue)!important;color:#fff!important}
+.chat-btn.cw-unread .chat-dot{display:none}
