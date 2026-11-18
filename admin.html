@@ -89,8 +89,14 @@ if(!FB.apiKey||String(FB.apiKey).includes('PASTE')){login.hidden=false;loginmsg.
 else{
 const [A,Auth,fs]=await Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-auth.js'),import(SDK+'firebase-firestore.js')]);
 const fbApp=A.initializeApp(FB),ac=CFG.appCheck||{};
-if(ac.siteKey){if(ac.debug)self.FIREBASE_APPCHECK_DEBUG_TOKEN=true;const chk=await import(SDK+'firebase-app-check.js');
-  chk.initializeAppCheck(fbApp,{provider:ac.provider==='enterprise'?new chk.ReCaptchaEnterpriseProvider(ac.siteKey):new chk.ReCaptchaV3Provider(ac.siteKey),isTokenAutoRefreshEnabled:true})}
+if(ac.siteKey){
+  if(ac.debug)self.FIREBASE_APPCHECK_DEBUG_TOKEN=true;
+  const chk=await import(SDK+'firebase-app-check.js');
+  chk.initializeAppCheck(fbApp,{
+    provider: new chk.ReCaptchaEnterpriseProvider(ac.siteKey),
+    isTokenAutoRefreshEnabled:true
+  });
+}
 const auth=Auth.getAuth(fbApp),db=fs.getFirestore(fbApp);
 let user=null,chats=[],sel=null,unsubMsgs=null,unsubList=null,online=false,beat=null,soundOn=true,first=true,audio=null,flash=null;
 const ADMIN=(CFG.adminEmail||'').toLowerCase();
