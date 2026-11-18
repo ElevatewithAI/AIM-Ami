@@ -98,7 +98,7 @@ if(ac.siteKey){
   });
 }
 const auth=Auth.getAuth(fbApp),db=fs.getFirestore(fbApp);
-let user=null,chats=[],sel=null,unsubMsgs=null,unsubList=null,online=false,beat=null,soundOn=true,first=true,audio=null,flash=null;
+let user=null,chats=[],sel=null,unsubMsgs=null,unsubList=null,unsubChatDoc=null,online=false,beat=null,soundOn=true,first=true,audio=null,flash=null,adminTypingTimer=null;
 const ADMIN=(CFG.adminEmail||'').toLowerCase();
 
 $('#signin').onclick=()=>Auth.signInWithPopup(auth,new Auth.GoogleAuthProvider()).catch(e=>{loginmsg.textContent='Sign in failed: '+(e.code||e.message)});
@@ -108,7 +108,7 @@ Auth.onAuthStateChanged(auth,u=>{
   if((u.email||'').toLowerCase()!==ADMIN||!u.emailVerified){loginmsg.textContent='This account is not allowed here.';Auth.signOut(auth);return}
   user=u;login.hidden=true;app.hidden=false;loginmsg.textContent='';start()});
 
-function cleanup(){unsubList&&unsubList();unsubMsgs&&unsubMsgs();clearInterval(beat);unsubList=unsubMsgs=null}
+function cleanup(){unsubList&&unsubList();unsubMsgs&&unsubMsgs();unsubChatDoc&&unsubChatDoc();clearInterval(beat);unsubList=unsubMsgs=unsubChatDoc=null}
 function start(){
   cleanup();first=true;
   unsubList=fs.onSnapshot(fs.query(fs.collection(db,'chats'),fs.orderBy('lastMessageAt','desc'),fs.limit(60)),snap=>{
@@ -130,24 +130,45 @@ function renderInfo(c){
   i.innerHTML=`<div><h3>${esc(c.name)}</h3><p><a href="mailto:${esc(c.email)}">${esc(c.email)}</a> · from ${esc(c.page||'site')} · started ${ago(c.createdAt)} ago</p></div><button class="btn alt" id="toggle" type="button">${c.status==='closed'?'Reopen chat':'Close chat'}</button>`;
   $('#toggle').onclick=()=>fs.updateDoc(fs.doc(db,'chats',c.id),{status:c.status==='closed'?'open':'closed'});
   const d=$('#ai');d.hidden=!c.aiTranscript;$('#aipre').textContent=c.aiTranscript||''}
+
 function openChat(id){
-  sel=id;unsubMsgs&&unsubMsgs();history.replaceState(null,'','#'+id);
+  sel=id;unsubMsgs&&unsubMsgs();unsubChatDoc&&unsubChatDoc();history.replaceState(null,'','#'+id);
   $('#reply').hidden=false;renderList();
   const c=chats.find(x=>x.id===id);if(c)renderInfo(c);
   fs.updateDoc(fs.doc(db,'chats',id),{unreadAdmin:false}).catch(()=>{});
+  
   unsubMsgs=fs.onSnapshot(fs.query(fs.collection(db,'chats',id,'messages'),fs.orderBy('createdAt','asc')),snap=>{
     const box=$('#msgs');
     box.innerHTML=snap.docs.map(d=>{const m=d.data({serverTimestamps:'estimate'});
       return `<div class="m ${m.from==='admin'?'a':'v'}">${esc(m.text)}<small>${m.from==='admin'?'You':'Visitor'} · ${ago(m.createdAt)}</small></div>`}).join('')||'<div class="empty">No messages yet.</div>';
     box.scrollTop=box.scrollHeight;
     if(document.hasFocus())fs.updateDoc(fs.doc(db,'chats',id),{unreadAdmin:false}).catch(()=>{})});
+
+  unsubChatDoc=fs.onSnapshot(fs.doc(db,'chats',id),snap=>{
+    if(snap.exists()){
+      const dat=snap.data();
+      let typ=$('#typing-indicator');
+      if(!typ){typ=document.createElement('div');typ.id='typing-indicator';typ.style.cssText='padding:0.3rem 1.2rem;font-size:0.8rem;color:#666;font-style:italic;';$('#msgs').after(typ)}
+      typ.textContent=dat.typingVisitor?'Visitor is typing...':'';
+    }
+  });
   $('#txt').focus()}
+
 async function send(){
   const t=$('#txt').value.trim();if(!t||!sel)return;$('#txt').value='';
   await fs.addDoc(fs.collection(db,'chats',sel,'messages'),{from:'admin',uid:user.uid,text:t,createdAt:fs.serverTimestamp()});
-  await fs.updateDoc(fs.doc(db,'chats',sel),{lastMessageAt:fs.serverTimestamp(),unreadAdmin:false,status:'open'})}
+  await fs.updateDoc(fs.doc(db,'chats',sel),{lastMessageAt:fs.serverTimestamp(),unreadAdmin:false,status:'open',typingAdmin:false})}
+
 $('#reply').onsubmit=e=>{e.preventDefault();send()};
 $('#txt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
+$('#txt').oninput=()=>{
+  if(!sel)return;
+  clearTimeout(adminTypingTimer);
+  fs.updateDoc(fs.doc(db,'chats',sel),{typingAdmin:true}).catch(()=>{});
+  adminTypingTimer=setTimeout(()=>{
+    fs.updateDoc(fs.doc(db,'chats',sel),{typingAdmin:false}).catch(()=>{});
+  },2000);
+};
 
 async function setOnline(v){
   online=v;clearInterval(beat);
