@@ -406,18 +406,6 @@ footer .social a:hover{background:var(--blue);border-color:var(--blue);color:#ff
 
 
 
-.chat-btn { position: relative; }
-.chat-btn[data-unread]::after {
-  content: attr(data-unread);
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  background: #b00020;
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 999px;
-  border: 2px solid #fff;
-}
-.cw-foot-actions { display: flex; gap: 0.4rem; align-items: center; }
+.cw-foot-actions { display: flex; gap: 0.5rem; align-items: center; }
+.cw-save { background: #fff; color: var(--ink); border: 1px solid var(--line); font-size: 0.8rem; padding: 0.3rem 0.7rem; border-radius: 999px; }
+.cw-save:hover { background: var(--grey); }
