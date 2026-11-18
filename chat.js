@@ -67,26 +67,43 @@
   function loadFB(){
     if(S.fbP)return S.fbP;
     S.fbP=(async function(){
-      var m=await Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-auth.js'),import(SDK+'firebase-firestore.js')]);
+      var m=await Promise.all([
+        import(SDK+'firebase-app.js'),
+        import(SDK+'firebase-auth.js'),
+        import(SDK+'firebase-firestore.js'),
+        import(SDK+'firebase-ai.js')
+      ]);
       var app=m[0].initializeApp(FB),ac=CFG.appCheck||{};
       if(ac.siteKey){
         if(ac.debug)self.FIREBASE_APPCHECK_DEBUG_TOKEN=true;
         var chk=await import(SDK+'firebase-app-check.js');
-        chk.initializeAppCheck(app,{provider:ac.provider==='enterprise'?new chk.ReCaptchaEnterpriseProvider(ac.siteKey):new chk.ReCaptchaV3Provider(ac.siteKey),isTokenAutoRefreshEnabled:true})}
-      S.fb={app:app,A:m[1],auth:m[1].getAuth(app),fs:m[2],db:m[2].getFirestore(app)};
+        chk.initializeAppCheck(app,{
+          provider: new chk.ReCaptchaEnterpriseProvider(ac.siteKey),
+          isTokenAutoRefreshEnabled:true
+        });
+      }
+      S.fb={app:app,A:m[1],auth:m[1].getAuth(app),fs:m[2],db:m[2].getFirestore(app),ai:m[3]};
       watchPresence();
       return S.fb})();
-    S.fbP.catch(function(){S.fbP=null});
+    S.fbP.catch(function(err){console.warn('Firebase load error:', err);S.fbP=null});
     return S.fbP}
+
   function watchPresence(){
     var f=S.fb;if(!f||S.presUnsub)return;
     S.presUnsub=f.fs.onSnapshot(f.fs.doc(f.db,'presence','admin'),function(s){
       var d=s.exists()?s.data({serverTimestamps:'estimate'}):null,t=d&&d.lastSeen&&d.lastSeen.toMillis?d.lastSeen.toMillis():0;
       S.agentOnline=!!(d&&d.online&&Date.now()-t<120000);status()},function(){})}
+
   async function aiSession(){
     if(S.chat)return S.chat;
-    var f=await loadFB(),know=await knowledge(),ai=await import(SDK+'firebase-ai.js');
-    var model=ai.getGenerativeModel(ai.getAI(f.app,{backend:new ai.GoogleAIBackend()}),{model:CFG.aiModel||'gemini-2.5-flash',systemInstruction:SYS+JSON.stringify(know),generationConfig:{maxOutputTokens:1200,temperature:.4}});
+    var f=await loadFB(),know=await knowledge();
+    var ai=f.ai;
+    var aiInstance=ai.getAI(f.app,{backend:new ai.GoogleAIBackend()});
+    var model=ai.getGenerativeModel(aiInstance,{
+      model:CFG.aiModel||'gemini-2.5-flash',
+      systemInstruction:SYS+JSON.stringify(know),
+      generationConfig:{maxOutputTokens:1200,temperature:.4}
+    });
     S.chat=model.startChat();return S.chat}
 
   /* AI chat */
@@ -101,6 +118,7 @@
       if(!ready)throw new Error('not configured');
       var c=await aiSession(),r=await c.sendMessage(text);reply(r.response.text())
     }catch(e){
+      console.warn('AI Error:', e);
       var la=localAnswer(text);
       reply(la?la:'I am not sure about that one. A person can help you better.\nHANDOFF')}
     S.typing=false;S.busy=false;paint()}
