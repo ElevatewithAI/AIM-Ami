@@ -7,7 +7,7 @@
   if(!panel||!btn)return;
   var SDK='https://www.gstatic.com/firebasejs/'+(CFG.sdk||'12.15.0')+'/';
   // Formspree endpoint used to email the agent when a visitor starts a live chat.
-  var FORM_URL=CFG.liveAgentFormUrl||'https://formspree.io/f/mqpqqwbo';
+  var FORM_URL='https://formspree.io/f/mqpqqwbo';
   var S={fb:null,fbP:null,chat:null,know:null,knowP:null,ai:[],live:[],aiCount:0,transcript:[],chatId:null,uid:null,
     agentOnline:false,view:'ai',inited:false,closed:false,unsubs:[],presUnsub:null,busy:false,lastAt:0,lastMsgAt:0,
     typingTimer:null,audio:null,unread:0,liveReady:false,liveActive:false,ending:false,pendingContext:''};
@@ -27,19 +27,29 @@
       '<button type="button" class="cw-start">Start chat</button><button type="button" class="cw-back">Back to Aima</button></div>'+
     '<div class="cw-chips"></div>'+
     '<form class="cw-input" autocomplete="off"><input type="text" maxlength="500" placeholder="Ask about services, prices, guides" aria-label="Your message"><button type="submit" aria-label="Send">Send</button></form>'+
-    '<div class="cw-foot"><div class="cw-foot-actions"><button type="button" class="cw-human">Live agent</button><button type="button" class="cw-save" hidden>Save chat</button></div><span>AI can make mistakes. Never share passwords or card numbers.</span></div>';
+    '<div class="cw-foot"><div class="cw-foot-actions"><button type="button" class="cw-human">Live agent</button><button type="button" class="cw-save">Save chat</button></div><span>AI can make mistakes. Never share passwords or card numbers.</span></div>';
   var $=function(s){return panel.querySelector(s)};
   var body=$('.cw-body'),chips=$('.cw-chips'),inputForm=$('.cw-input'),inputEl=inputForm.querySelector('input'),humanBtn=$('.cw-human'),saveBtn=$('.cw-save');
 
   /* unread badge on the chat button */
   var badge=document.createElement('span');
   badge.className='cw-badge';
-  badge.style.cssText='display:none;position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:#e53935;color:#fff;font:700 12px/20px sans-serif;text-align:center;box-sizing:border-box;pointer-events:none';
-  try{if(getComputedStyle(btn).position==='static')btn.style.position='relative'}catch(e){}
-  btn.appendChild(badge);
+  badge.setAttribute('aria-hidden','true');
+  // Blue to match the site (--blue), white ring so it stands out on the dark chat button.
+  badge.style.cssText='display:none;position:absolute;top:-8px;right:-8px;min-width:24px;height:24px;padding:0 6px;border-radius:12px;background:var(--blue,#1F4BFF);color:#fff;border:2px solid #fff;font:700 12px/20px Inter,system-ui,sans-serif;text-align:center;box-sizing:border-box;pointer-events:none;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+  // Re-attach the badge if the page's own script rewrites the button's contents.
+  function ensureBadge(){
+    try{if(getComputedStyle(btn).position==='static')btn.style.position='relative'}catch(e){}
+    if(badge.parentNode!==btn)btn.appendChild(badge)}
   function updateBadge(){
-    if(S.unread>0){badge.textContent=S.unread>99?'99+':String(S.unread);badge.style.display='block';btn.classList.add('cw-unread')}
-    else{badge.style.display='none';btn.classList.remove('cw-unread')}}
+    ensureBadge();
+    if(S.unread>0){badge.textContent=S.unread>99?'99+':String(S.unread);badge.style.display='block';btn.classList.add('cw-unread');btn.setAttribute('aria-label','Chat, '+S.unread+' unread')}
+    else{badge.style.display='none';btn.classList.remove('cw-unread');btn.removeAttribute('aria-label')}}
+  ensureBadge();
+  // Clear the count when the visitor comes back to the tab with the chat open.
+  function seen(){if(panel.classList.contains('open')&&S.view==='live'&&!document.hidden)clearUnread()}
+  document.addEventListener('visibilitychange',seen);
+  window.addEventListener('focus',seen);
   function clearUnread(){S.unread=0;updateBadge()}
 
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
@@ -82,7 +92,6 @@
     b.onclick=function(){if(/live agent/i.test(c))startHuman();else sendAI(c)};chips.appendChild(b)})}
   function setView(v){S.view=v;panel.setAttribute('data-view',v);
     humanBtn.textContent=v==='live'?'End chat':'Live agent';
-    saveBtn.hidden=v!=='live';
     inputEl.placeholder=v==='live'?'Write to our team':'Ask about services, prices, guides';
     if(v!=='ai')chips.innerHTML='';paint();status()}
   function status(){var st=$('.cw-st'),dot=$('.cw-dot');
@@ -199,23 +208,27 @@
   // Emails the agent through Formspree. Errors are logged to the console instead of silently ignored.
   function notify(name,email,id){
     if(!FORM_URL)return;
-    var base=location.origin+location.pathname.replace(/[^\/]*$/,'')+'admin.html',fd=new FormData();
-    fd.append('name',name);
-    fd.append('email',email);
-    fd.append('_replyto',email);
-    fd.append('_subject','Live agent request from '+name);
-    fd.append('message','Live chat requested from '+location.href+'\n\nOpen the admin page to reply:\n'+base+'#'+id+'\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)'));
-    fetch(FORM_URL,{method:'POST',body:fd,headers:{Accept:'application/json'}})
+    var base=location.origin+location.pathname.replace(/[^\/]*$/,'')+'admin.html';
+    var payload={
+      name:name,
+      email:email,
+      _subject:'Live agent request from '+name,
+      message:'Live chat requested from '+location.href+'\n\nOpen the admin page to reply:\n'+base+'#'+id+'\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)')
+    };
+    fetch(FORM_URL,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(payload)})
       .then(function(r){
-        if(!r.ok)return r.json().catch(function(){return {}}).then(function(j){console.warn('Formspree rejected the request ('+r.status+'):',j)});
+        return r.json().catch(function(){return {}}).then(function(j){
+          if(r.ok&&!j.error)console.info('Formspree: live chat request sent.',j);
+          else console.warn('Formspree did NOT send the email. HTTP '+r.status,j);
+        });
       })
-      .catch(function(e){console.warn('Formspree request failed:',e)})}
+      .catch(function(e){console.warn('Formspree request failed (network, CORS, or blocked by an extension):',e)})}
 
   function onAgentMessage(){
     S.lastMsgAt=Date.now();
     beep();
-    // Count it as unread when the panel is minimized or the visitor is not looking at the live view.
-    if(!panel.classList.contains('open')||S.view!=='live'){S.unread++;updateBadge()}}
+    // Count it as unread when the panel is minimized, another tab is in front, or the live view is not showing.
+    if(!panel.classList.contains('open')||S.view!=='live'||document.hidden){S.unread++;updateBadge()}}
 
   async function enterLive(){
     if(S.liveActive)return;
