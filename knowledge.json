@@ -1,0 +1,97 @@
+{
+  "business": "AIM-Ami helps businesses, entrepreneurs, and teams use AI safely and effectively. It offers AI project consulting, cybersecurity memberships for creators and small businesses, and AI education. Practical expertise, human-led protection, no complicated software or platforms to manage.",
+  "contact": {
+    "email": "helloaimami@gmail.com",
+    "form": "index.html#contact",
+    "social": {
+      "YouTube": "https://www.youtube.com/@AIM-Ami",
+      "Instagram": "https://www.instagram.com/helloaimami/",
+      "LinkedIn": "https://www.linkedin.com/in/jaydeep-sodhi/",
+      "Facebook": "https://www.facebook.com/Aim.Ami/"
+    }
+  },
+  "services": [
+    {
+      "name": "AI Project Consultancy",
+      "type": "Consulting, one-time engagement",
+      "tagline": "Build smarter. Work better with AI.",
+      "price": "Scope-based pricing, confirmed before work begins",
+      "includes": ["AI prompting and prompt architecture", "AI workflow optimization", "Application improvement and feature planning", "AI integration strategy", "Technical and implementation guidance"],
+      "addOns": ["Social media handle setup", "Automated messaging workflows"],
+      "bestFor": "Individuals and businesses improving an existing app, workflow, or digital product with AI",
+      "link": "index.html#services"
+    },
+    {
+      "name": "Creator Protection",
+      "type": "Creator security, monthly subscription",
+      "tagline": "Your digital presence deserves protection.",
+      "tiers": [
+        {
+          "name": "Essential",
+          "price": "$9 per month",
+          "setupFee": "None. Start right away.",
+          "includes": ["Monthly security checklist", "Public impersonation checks", "Scam alerts and awareness", "Self-guided account protection", "Monthly security digest"]
+        },
+        {
+          "name": "Plus",
+          "price": "$19 per month",
+          "setupFee": "$29 one-time onboarding for the initial assessment and personalized setup",
+          "includes": ["Everything in Essential", "Two personal security reviews per year", "Suspicious collaboration email review (limited)", "Quarterly exposure review", "Priority incident guidance"]
+        }
+      ],
+      "limits": "Defined service limits. No continuous emergency response. Emergency response and account recovery are quoted separately.",
+      "bestFor": "Influencers and content creators",
+      "link": "index.html#services"
+    },
+    {
+      "name": "Small Business Digital Protection",
+      "type": "Business security, monthly subscription",
+      "tagline": "Protect the digital foundation of your business.",
+      "price": "Custom pricing based on business size and scope",
+      "setupFee": "Onboarding and security assessment fee starting at $99, confirmed before activation",
+      "includes": ["Business email and domain security reviews", "Employee account security checklist", "Access and permission reviews", "Phishing and suspicious email guidance", "Monthly security status report", "Defined incident support"],
+      "bestFor": "Small and growing businesses",
+      "link": "index.html#services"
+    }
+  ],
+  "discoveryCall": {
+    "what": "A 25 minute paid call to review goals and risks and leave with a clear next step",
+    "price": "$29 booking fee, required to secure your time",
+    "credit": "Credited toward any service purchased within 30 days",
+    "link": "index.html#contact"
+  },
+  "events": {
+    "items": ["Workshops and webinars", "Masterclass"],
+    "note": "Dates to be announced. People can sign up now and will be sent details when dates are set.",
+    "link": "index.html#events"
+  },
+  "shop": {
+    "freebies": {"items": ["AI starter guide (plain-language intro to AI tools with copyable prompts)", "Prompt cheat sheet (one page of prompt patterns)", "AI security checklist (ten checks before connecting an AI tool)"], "link": "shop.html#freebies"},
+    "digitalProducts": {"status": "Coming soon", "items": ["Security policy templates", "Prompt packs"], "link": "shop.html#products"},
+    "courses": {"status": "Coming soon", "items": ["AI in entrepreneurship", "AI prompting and architecture", "Language learning with AI", "Using AI to grow"], "link": "shop.html#courses"}
+  },
+  "learn": {
+    "what": "Free lessons on YouTube. A podcast is coming soon.",
+    "link": "index.html#learn",
+    "youtube": "https://www.youtube.com/@AIM-Ami"
+  },
+  "policies": {
+    "forms": "Submitting a form is a request for services and does not create a service agreement. Scope, pricing, and timing are confirmed before any work begins.",
+    "terms": "terms.html",
+    "privacy": "privacy.html",
+    "refundsAndCancellations": "Not listed in detail on the site yet. Send the person to a live agent or the contact form."
+  },
+  "faq": [
+    {"keywords": ["service", "services", "offer", "what do you do", "help with"], "answer": "AIM-Ami offers three main services: **AI Project Consultancy** (build and improve with AI), **Creator Protection** (monthly security for creators, from $9), and **Small Business Digital Protection** (monthly security for businesses). See them all in [Services](index.html#services)."},
+    {"keywords": ["creator", "influencer", "essential", "plus", "$9", "$19", "impersonation", "scam"], "answer": "**Creator Protection** has two plans. **Essential** is $9 a month with no setup fee (monthly checklist, impersonation checks, scam alerts, self-guided protection, monthly digest). **Plus** is $19 a month plus a $29 one-time onboarding fee and adds two personal security reviews a year, a quarterly exposure review, and priority incident guidance. Details are in [Services](index.html#services)."},
+    {"keywords": ["business", "company", "team", "employees", "small business"], "answer": "**Small Business Digital Protection** covers email and domain reviews, employee account checklists, access reviews, phishing guidance, a monthly status report, and defined incident support. Pricing is custom by business size, with an onboarding assessment starting at $99. See [Services](index.html#services) or [contact us](index.html#contact) for a quote."},
+    {"keywords": ["consult", "consultancy", "project", "prompt", "architecture", "workflow", "automation", "app", "build"], "answer": "**AI Project Consultancy** is a one-time engagement for improving an app, workflow, or digital product with AI: prompting and prompt architecture, workflow optimization, feature planning, AI integration strategy, and implementation guidance. Pricing is scope-based. See [Services](index.html#services)."},
+    {"keywords": ["discovery", "call", "book", "booking", "consultation", "meeting", "schedule"], "answer": "The **discovery call** is 25 minutes for a $29 booking fee. The fee secures your time and is credited toward any service you purchase within 30 days. You can [book it here](index.html#contact)."},
+    {"keywords": ["free", "guide", "guides", "download", "freebie", "cheat sheet", "checklist"], "answer": "There are three free guides in the shop: the **AI starter guide**, the **Prompt cheat sheet**, and the **AI security checklist**. Grab them in [Freebies](shop.html#freebies)."},
+    {"keywords": ["course", "courses", "learn", "class", "training", "youtube"], "answer": "Free lessons live on [YouTube](https://www.youtube.com/@AIM-Ami). Paid courses (AI in entrepreneurship, AI prompting and architecture, language learning with AI, and using AI to grow) are coming soon. See [Courses](shop.html#courses)."},
+    {"keywords": ["event", "events", "workshop", "webinar", "masterclass", "sign up", "signup"], "answer": "We host **workshops and webinars** and a **masterclass**. Dates are still to be announced, but you can sign up now in [Events](index.html#events) and we will send details."},
+    {"keywords": ["product", "products", "shop", "template", "templates", "pack", "packs", "store"], "answer": "The [shop](shop.html) has free guides now, and digital products (security policy templates and prompt packs) and courses are coming soon."},
+    {"keywords": ["contact", "email", "reach", "talk", "human", "person", "agent"], "answer": "You can reach us through the [contact form](index.html#contact) or at helloaimami@gmail.com. To chat with a person, tap **Talk to a person** below."},
+    {"keywords": ["price", "pricing", "cost", "how much", "fee", "setup"], "answer": "Pricing: Creator Essential $9 a month (no setup fee), Creator Plus $19 a month ($29 onboarding), Small Business protection is custom (onboarding from $99), consulting is scope-based, and the discovery call is a $29 booking fee credited toward services within 30 days. See [Services](index.html#services)."}
+  ]
+}

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Live chat admin | AIM-Ami</title>
+<!-- Google Analytics: paste your script here if you want admin visits tracked (not recommended) -->
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#14161f;--blue:#1F4BFF;--yellow:#FFD60A;--grey:#f3f5fc;--line:#e1e6f5}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Inter',system-ui,sans-serif;color:#222;background:#fff;line-height:1.5}
+h1,h2,h3{font-family:'Space Grotesk','Inter',sans-serif;color:var(--ink);letter-spacing:-.02em}
+button{font:inherit;cursor:pointer}
+.btn{font-weight:600;font-size:.9rem;padding:.55rem 1.1rem;border-radius:999px;border:2px solid var(--ink);background:var(--ink);color:#fff;transition:background .2s,border-color .2s,color .2s}
+.btn:hover{background:var(--blue);border-color:var(--blue)}
+.btn.alt{background:#fff;color:var(--ink)}.btn.alt:hover{background:var(--blue);color:#fff}
+.btn.y{background:var(--yellow);border-color:var(--yellow);color:#000}.btn.y:hover{background:var(--blue);border-color:var(--blue);color:#fff}
+.center{min-height:100%;display:grid;place-content:center;gap:1rem;text-align:center;padding:2rem}
+#loginmsg{color:#b00020;font-weight:600;min-height:1.4rem}
+#app{height:100%;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-bottom:1px solid var(--line)}
+header h1{font-size:1.3rem}
+.tools{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:.4rem;font-weight:600;font-size:.85rem;padding:.3rem .8rem;border-radius:999px;background:var(--grey)}
+.pill i{width:10px;height:10px;border-radius:50%;background:#b8bccb}.pill.on i{background:var(--yellow);box-shadow:0 0 0 3px rgba(255,214,10,.35)}
+main{flex:1;min-height:0;display:grid;grid-template-columns:320px 1fr}
+#list{border-right:1px solid var(--line);overflow-y:auto}
+.item{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:#fff;padding:.9rem 1.1rem;transition:background .2s,color .2s}
+.item:hover,.item.sel{background:var(--blue);color:#fff}
+.item b{display:flex;justify-content:space-between;gap:.5rem}
+.item small{display:block;opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--yellow);flex:none;margin-top:6px}
+.tagc{font-size:.7rem;font-weight:600;background:#e6e8f2;color:#333;border-radius:999px;padding:.05rem .5rem}
+#conv{display:flex;flex-direction:column;min-height:0}
+#info{padding:.8rem 1.2rem;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:.4rem 1rem;align-items:center;justify-content:space-between}
+#info p{font-size:.88rem;color:#555}
+details{padding:.5rem 1.2rem;border-bottom:1px solid var(--line);font-size:.85rem;color:#444}
+details pre{white-space:pre-wrap;font-family:inherit;margin-top:.4rem}
+#msgs{flex:1;overflow-y:auto;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:.5rem;background:var(--grey)}
+.m{max-width:75%;padding:.55rem .85rem;border-radius:14px;font-size:.95rem;white-space:pre-wrap;word-wrap:break-word}
+.m small{display:block;opacity:.6;font-size:.72rem;margin-top:.2rem}
+.m.v{background:#fff;align-self:flex-start;border-bottom-left-radius:4px}
+.m.a{background:var(--ink);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+#reply{display:flex;gap:.6rem;padding:.8rem 1.2rem;border-top:1px solid var(--line)}
+#reply textarea{flex:1;font:inherit;border:2px solid #cfd5e6;border-radius:12px;padding:.6rem .8rem;resize:none;height:48px}
+#reply textarea:focus{outline:0;border-color:var(--blue)}
+.empty{margin:auto;color:#777;text-align:center;padding:2rem}
+@media(max-width:760px){main{grid-template-columns:1fr;grid-template-rows:190px 1fr}#list{border-right:0;border-bottom:1px solid var(--line)}.m{max-width:90%}}
+</style>
+</head>
+<body>
+<div id="login" class="center" hidden>
+  <h1>Live chat admin</h1>
+  <p>Sign in with the admin Google account.</p>
+  <button class="btn" id="signin" type="button">Sign in with Google</button>
+  <p id="loginmsg" role="alert"></p>
+</div>
+<div id="app" hidden>
+  <header>
+    <h1>Live chat</h1>
+    <div class="tools">
+      <span class="pill" id="pstate"><i></i><span>Offline</span></span>
+      <button class="btn y" id="online" type="button">Go online</button>
+      <button class="btn alt" id="sound" type="button">Sound on</button>
+      <button class="btn alt" id="notif" type="button">Enable alerts</button>
+      <button class="btn alt" id="out" type="button">Sign out</button>
+    </div>
+  </header>
+  <main>
+    <div id="list" aria-label="Conversations"></div>
+    <div id="conv">
+      <div id="info" hidden></div>
+      <details id="ai" hidden><summary>Assistant conversation before the chat started</summary><pre id="aipre"></pre></details>
+      <div id="msgs"><div class="empty">Select a conversation. Keep this tab open while you are online.</div></div>
+      <form id="reply" hidden><textarea id="txt" placeholder="Write a reply. Enter sends, Shift+Enter adds a line." maxlength="2000"></textarea><button class="btn" type="submit">Send</button></form>
+    </div>
+  </main>
+</div>
+<script src="firebase-config.js"></script>
+<script type="module">
+const CFG=window.AIM_CONFIG||{},FB=CFG.firebase||{},SDK='https://www.gstatic.com/firebasejs/'+(CFG.sdk||'12.15.0')+'/';
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const login=$('#login'),app=$('#app'),loginmsg=$('#loginmsg');
+if(!FB.apiKey||String(FB.apiKey).includes('PASTE')){login.hidden=false;loginmsg.textContent='Firebase is not set up yet. Fill in firebase-config.js first.';$('#signin').disabled=true}
+else{
+const [A,Auth,fs]=await Promise.all([import(SDK+'firebase-app.js'),import(SDK+'firebase-auth.js'),import(SDK+'firebase-firestore.js')]);
+const fbApp=A.initializeApp(FB),ac=CFG.appCheck||{};
+if(ac.siteKey){if(ac.debug)self.FIREBASE_APPCHECK_DEBUG_TOKEN=true;const chk=await import(SDK+'firebase-app-check.js');
+  chk.initializeAppCheck(fbApp,{provider:ac.provider==='enterprise'?new chk.ReCaptchaEnterpriseProvider(ac.siteKey):new chk.ReCaptchaV3Provider(ac.siteKey),isTokenAutoRefreshEnabled:true})}
+const auth=Auth.getAuth(fbApp),db=fs.getFirestore(fbApp);
+let user=null,chats=[],sel=null,unsubMsgs=null,unsubList=null,online=false,beat=null,soundOn=true,first=true,audio=null,flash=null;
+const ADMIN=(CFG.adminEmail||'').toLowerCase();
+
+$('#signin').onclick=()=>Auth.signInWithPopup(auth,new Auth.GoogleAuthProvider()).catch(e=>{loginmsg.textContent='Sign in failed: '+(e.code||e.message)});
+$('#out').onclick=async()=>{await setOnline(false);Auth.signOut(auth)};
+Auth.onAuthStateChanged(auth,u=>{
+  if(!u){user=null;app.hidden=true;login.hidden=false;cleanup();return}
+  if((u.email||'').toLowerCase()!==ADMIN||!u.emailVerified){loginmsg.textContent='This account is not allowed here.';Auth.signOut(auth);return}
+  user=u;login.hidden=true;app.hidden=false;loginmsg.textContent='';start()});
+
+function cleanup(){unsubList&&unsubList();unsubMsgs&&unsubMsgs();clearInterval(beat);unsubList=unsubMsgs=null}
+function start(){
+  cleanup();first=true;
+  unsubList=fs.onSnapshot(fs.query(fs.collection(db,'chats'),fs.orderBy('lastMessageAt','desc'),fs.limit(60)),snap=>{
+    chats=snap.docs.map(d=>({id:d.id,...d.data({serverTimestamps:'estimate'})}));
+    if(!first)snap.docChanges().forEach(ch=>{if(ch.type==='added'||ch.type==='modified'){const d=ch.doc.data({serverTimestamps:'estimate'});
+      if(d.unreadAdmin&&!(sel===ch.doc.id&&document.hasFocus()))alertNew(d,ch.type==='added')}});
+    first=false;renderList();
+    if(!sel&&location.hash.length>1&&chats.some(c=>c.id===location.hash.slice(1)))openChat(location.hash.slice(1));
+    const cur=chats.find(c=>c.id===sel);if(cur)renderInfo(cur)},e=>{$('#list').innerHTML='<div class="empty">Could not load chats. Check the Firestore rules.</div>';console.warn(e)})}
+const ms=t=>t&&t.toMillis?t.toMillis():0;
+const ago=t=>{const s=Math.max(0,(Date.now()-ms(t))/1000);return s<60?'now':s<3600?Math.floor(s/60)+' min':s<86400?Math.floor(s/3600)+' h':Math.floor(s/86400)+' d'};
+function renderList(){
+  const el=$('#list');
+  if(!chats.length){el.innerHTML='<div class="empty">No conversations yet.</div>';return}
+  el.innerHTML=chats.map(c=>`<button class="item${c.id===sel?' sel':''}" data-id="${c.id}"><b><span>${esc(c.name)}</span><span>${c.unreadAdmin?'<span class="dot"></span>':''}</span></b><small>${esc(c.email)}</small><small>${ago(c.lastMessageAt)}${c.status==='closed'?' · closed':''}</small></button>`).join('');
+  el.querySelectorAll('.item').forEach(b=>b.onclick=()=>openChat(b.dataset.id))}
+function renderInfo(c){
+  const i=$('#info');i.hidden=false;
+  i.innerHTML=`<div><h3>${esc(c.name)}</h3><p><a href="mailto:${esc(c.email)}">${esc(c.email)}</a> · from ${esc(c.page||'site')} · started ${ago(c.createdAt)} ago</p></div><button class="btn alt" id="toggle" type="button">${c.status==='closed'?'Reopen chat':'Close chat'}</button>`;
+  $('#toggle').onclick=()=>fs.updateDoc(fs.doc(db,'chats',c.id),{status:c.status==='closed'?'open':'closed'});
+  const d=$('#ai');d.hidden=!c.aiTranscript;$('#aipre').textContent=c.aiTranscript||''}
+function openChat(id){
+  sel=id;unsubMsgs&&unsubMsgs();history.replaceState(null,'','#'+id);
+  $('#reply').hidden=false;renderList();
+  const c=chats.find(x=>x.id===id);if(c)renderInfo(c);
+  fs.updateDoc(fs.doc(db,'chats',id),{unreadAdmin:false}).catch(()=>{});
+  unsubMsgs=fs.onSnapshot(fs.query(fs.collection(db,'chats',id,'messages'),fs.orderBy('createdAt','asc')),snap=>{
+    const box=$('#msgs');
+    box.innerHTML=snap.docs.map(d=>{const m=d.data({serverTimestamps:'estimate'});
+      return `<div class="m ${m.from==='admin'?'a':'v'}">${esc(m.text)}<small>${m.from==='admin'?'You':'Visitor'} · ${ago(m.createdAt)}</small></div>`}).join('')||'<div class="empty">No messages yet.</div>';
+    box.scrollTop=box.scrollHeight;
+    if(document.hasFocus())fs.updateDoc(fs.doc(db,'chats',id),{unreadAdmin:false}).catch(()=>{})});
+  $('#txt').focus()}
+async function send(){
+  const t=$('#txt').value.trim();if(!t||!sel)return;$('#txt').value='';
+  await fs.addDoc(fs.collection(db,'chats',sel,'messages'),{from:'admin',uid:user.uid,text:t,createdAt:fs.serverTimestamp()});
+  await fs.updateDoc(fs.doc(db,'chats',sel),{lastMessageAt:fs.serverTimestamp(),unreadAdmin:false,status:'open'})}
+$('#reply').onsubmit=e=>{e.preventDefault();send()};
+$('#txt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}};
+
+async function setOnline(v){
+  online=v;clearInterval(beat);
+  try{await fs.setDoc(fs.doc(db,'presence','admin'),{online:v,lastSeen:fs.serverTimestamp()},{merge:true})}catch(e){console.warn(e)}
+  if(v)beat=setInterval(()=>fs.setDoc(fs.doc(db,'presence','admin'),{online:true,lastSeen:fs.serverTimestamp()},{merge:true}).catch(()=>{}),30000);
+  $('#pstate').className='pill'+(v?' on':'');$('#pstate span').textContent=v?'Online':'Offline';$('#online').textContent=v?'Go offline':'Go online'}
+$('#online').onclick=()=>setOnline(!online);
+$('#sound').onclick=()=>{soundOn=!soundOn;$('#sound').textContent=soundOn?'Sound on':'Sound off'};
+$('#notif').onclick=async()=>{if('Notification' in window){const p=await Notification.requestPermission();$('#notif').textContent=p==='granted'?'Alerts on':'Alerts blocked'}};
+function beep(){try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();const o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.value=880;g.gain.setValueAtTime(.001,audio.currentTime);g.gain.exponentialRampToValueAtTime(.25,audio.currentTime+.02);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.5);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+.55)}catch(e){}}
+function alertNew(d,isNew){
+  if(soundOn)beep();
+  const base=document.title.replace(/^\(\d+\) /,'');let n=0;clearInterval(flash);
+  flash=setInterval(()=>{document.title=(n++%2?'':'(!) ')+(isNew?'New chat: ':'New message: ')+d.name;if(document.hasFocus()){clearInterval(flash);document.title=base}},900);
+  if('Notification' in window&&Notification.permission==='granted'){try{new Notification(isNew?'New live chat':'New message',{body:d.name})}catch(e){}}}
+window.addEventListener('focus',()=>{clearInterval(flash);document.title=document.title.replace(/^\(!\) /,'').replace(/^New (chat|message): .*/,'Live chat admin | AIM-Ami')});
+}
+</script>
+</body>
+</html>
