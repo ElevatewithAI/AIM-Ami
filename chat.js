@@ -6,7 +6,7 @@
   var panel=document.querySelector('.chat-panel'),btn=document.querySelector('.chat-btn');
   if(!panel||!btn)return;
   var SDK='https://www.gstatic.com/firebasejs/'+(CFG.sdk||'12.15.0')+'/';
-  var S={fb:null,fbP:null,chat:null,know:null,knowP:null,ai:[],live:[],aiCount:0,transcript:[],chatId:null,uid:null,agentOnline:false,view:'ai',inited:false,closed:false,unsubs:[],presUnsub:null,busy:false,lastAt:0,typingTimer:null,unreadCount:0};
+  var S={fb:null,fbP:null,chat:null,know:null,knowP:null,ai:[],live:[],aiCount:0,transcript:[],chatId:null,uid:null,agentOnline:false,view:'ai',inited:false,closed:false,unsubs:[],presUnsub:null,busy:false,lastAt:0,typingTimer:null,unreadCount:0,inactivityTimer:null};
   
   var SYS='You are Aima, the warm, engaging, and persuasive AI growth partner and expert advisor on the AIM-Ami website. Your goal is to guide visitors with genuine intelligence, offering tailored recommendations, explaining services, and enthusiastically answering questions using AI reasoning. '+
     'Base your knowledge on the SITE INFORMATION below, but weave in a natural, consultative sales and coaching mindset. When a visitor asks "what else" or for suggestions, proactively recommend high-value packages or services. Be warm, concise, and direct (at most 4 short sentences, plain language, never use em dashes). '+
@@ -26,7 +26,7 @@
       '<button type="button" class="cw-start btn">Start chat</button><button type="button" class="cw-back btn alt">Back to Aima</button></div>'+
     '<div class="cw-chips"></div>'+
     '<form class="cw-input" autocomplete="off"><input type="text" maxlength="500" placeholder="Ask about services, prices, guides" aria-label="Your message"><button type="submit" aria-label="Send">Send</button></form>'+
-    '<div class="cw-foot"><div class="cw-foot-actions"><button type="button" class="cw-human btn alt" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Talk to a person</button><button type="button" class="cw-download btn alt" title="Download chat history" style="padding:0.3rem 0.8rem;font-size:0.8rem;" hidden>Download Chat</button></div><span>AI can make mistakes. Never share passwords or card numbers.</span></div>';
+    '<div class="cw-foot"><div class="cw-foot-actions"><button type="button" class="cw-human btn alt" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Live Agent</button><button type="button" class="cw-download btn alt" title="Save chat history" style="padding:0.3rem 0.8rem;font-size:0.8rem;" hidden>Save Chat</button></div><span>AI can make mistakes. Never share passwords or card numbers.</span></div>';
   
   var $=function(s){return panel.querySelector(s)};
   var body=$('.cw-body'),chips=$('.cw-chips'),inputForm=$('.cw-input'),inputEl=inputForm.querySelector('input'),humanBtn=$('.cw-human'),downloadBtn=$('.cw-download');
@@ -62,7 +62,7 @@
         d.innerHTML='<i></i><i></i><i></i>';d.className+=' cw-bot cw-typing';
       } else {
         d.innerHTML=m.html;
-        if(m.human){var b=document.createElement('button');b.type='button';b.className='cw-inline';b.textContent='Talk to a person';b.onclick=startHuman;body.appendChild(b)}
+        if(m.human){var b=document.createElement('button');b.type='button';b.className='cw-inline';b.textContent='Live Agent';b.onclick=startHuman;body.appendChild(b)}
       }
       body.appendChild(d);
     });
@@ -72,11 +72,11 @@
 
   function addAI(role,text,human){S.ai.push({role:role,html:role==='me'?esc(text):fmt(text),human:human});paint()}
   function setChips(list){chips.innerHTML='';(list||[]).slice(0,4).forEach(function(c){var b=document.createElement('button');b.type='button';b.textContent=c;
-    b.onclick=function(){if(/talk to a person/i.test(c))startHuman();else sendAI(c)};chips.appendChild(b)})}
+    b.onclick=function(){if(/live agent/i.test(c))startHuman();else sendAI(c)};chips.appendChild(b)})}
   
   function setView(v){
     S.view=v;panel.setAttribute('data-view',v);
-    humanBtn.textContent=v==='live'?'End chat':'Talk to a person';
+    humanBtn.textContent=v==='live'?'End chat':'Live Agent';
     inputEl.placeholder=v==='live'?'Write to our team':'Ask about services, prices, guides';
     if(v!=='ai')chips.innerHTML='';paint();status();
   }
@@ -142,7 +142,7 @@
     text=String(text||'').trim().slice(0,500);if(!text||S.busy)return;
     S.lastAt=Date.now();
     addAI('me',text);S.transcript.push('Visitor: '+text);setChips([]);
-    if(S.aiCount>=35){addAI('bot','We have covered a lot! Would you like to connect directly with a team member for custom guidance?',true);return}
+    if(S.aiCount>=35){addAI('bot','We have covered a lot! Would you like to connect directly with a Live Agent for custom guidance?',true);return}
     S.aiCount++;S.busy=true;S.typing=true;paint();
     try{
       await knowledge();
@@ -158,9 +158,9 @@
     var human=/(^|\n)\s*HANDOFF\s*$/i.test(t),sug=t.match(/^SUGGEST:\s*(.+)$/mi);
     var clean=t.replace(/^SUGGEST:.*$/mi,'').replace(/(^|\n)\s*HANDOFF\s*$/i,'').trim();
     S.typing=false;addAI('bot',clean,human);S.transcript.push('Assistant: '+clean.replace(/\s+/g,' ').slice(0,300));
-    setChips(sug?sug[1].split('|').map(function(x){return x.trim()}).filter(Boolean):(human?['Talk to a person']:['What services do you offer?', 'Creator Protection pricing']))}
+    setChips(sug?sug[1].split('|').map(function(x){return x.trim()}).filter(Boolean):(human?['Live Agent']:['What services do you offer?', 'Creator Protection pricing']))}
 
-  /* live chat & typing / persistence */
+  /* live chat & inactivity / persistence */
   var stored=function(){try{var o=JSON.parse(localStorage.getItem('aimChat')||'null');return o&&Date.now()-o.t<864e5?o:null}catch(e){return null}};
   
   function startHuman(){
@@ -198,6 +198,35 @@
     fd.append('_gotcha','');
     fetch(CFG.liveAgentFormUrl,{method:'POST',body:fd,headers:{Accept:'application/json'}}).catch(function(){})}
 
+  function resetInactivityTimer(){
+    clearTimeout(S.inactivityTimer);
+    if(S.view==='live'&&!S.closed){
+      // 8 minutes = 8 * 60 * 1000 = 480000 ms
+      S.inactivityTimer=setTimeout(function(){
+        if(S.view==='live'&&!S.closed){
+          endLiveDueToInactivity();
+        }
+      }, 480000);
+    }
+  }
+
+  async function endLiveDueToInactivity(){
+    try{
+      if(S.chatId){
+        var f=await loadFB();
+        await f.fs.updateDoc(f.fs.doc(f.db,'chats',S.chatId),{status:'closed',unreadAdmin:true,lastMessageAt:f.fs.serverTimestamp()});
+      }
+    }catch(e){}
+    S.closed=true;
+    inputEl.disabled=true;
+    inputEl.placeholder='Chat ended due to inactivity';
+    S.live.push({role:'sys',html:'Chat closed automatically due to 8 minutes of inactivity.',ended:true});
+    paint();
+    setTimeout(function(){
+      endLive();
+    }, 2000);
+  }
+
   async function enterLive(){
     var f=await loadFB();
     if(!f.auth.currentUser)await f.A.signInAnonymously(f.auth);
@@ -205,6 +234,7 @@
     S.unsubs.forEach(function(u){u()});S.unsubs=[];
     S.live=[{role:'sys',html:'You are connected. A team member will reply here soon. If we are offline, we will reply by email.'}];
     setView('live');
+    resetInactivityTimer();
     
     // Listen for messages
     S.unsubs.push(f.fs.onSnapshot(f.fs.query(f.fs.collection(f.db,'chats',S.chatId,'messages'),f.fs.orderBy('createdAt','asc')),function(snap){
@@ -214,7 +244,7 @@
       var newMessagesArrived=false;
       var docChanges=snap.docChanges();
       
-      snap.docs.forEach(function(d, idx){
+      snap.docs.forEach(function(d){
         var m=d.data({serverTimestamps:'estimate'});
         var isAgent=(m.from==='agent');
         S.live.push({role:isAgent?'agent':'me',html:isAgent?fmt(m.text):esc(m.text)});
@@ -260,6 +290,7 @@
 
   async function updateVisitorTyping(isTyping){
     if(!S.chatId||S.view!=='live')return;
+    resetInactivityTimer();
     try{
       var f=await loadFB();
       await f.fs.updateDoc(f.fs.doc(f.db,'chats',S.chatId),{visitorTyping:isTyping,visitorTypingAt:f.fs.serverTimestamp()});
@@ -269,6 +300,7 @@
   async function sendLive(text){
     text=String(text||'').trim().slice(0,1000);if(!text||S.closed)return;
     updateVisitorTyping(false);
+    resetInactivityTimer();
     var f=await loadFB();
     try{
       await f.fs.addDoc(f.fs.collection(f.db,'chats',S.chatId,'messages'),{from:'visitor',uid:S.uid,text:text,createdAt:f.fs.serverTimestamp()});
@@ -290,8 +322,8 @@
   }
 
   function endLive(){
+    clearTimeout(S.inactivityTimer);
     S.unsubs.forEach(function(u){u()});S.unsubs=[];
-    var oldChatId=S.chatId;
     S.chatId=null;S.closed=false;inputEl.disabled=false;
     try{localStorage.removeItem('aimChat')}catch(e){}
     
@@ -335,7 +367,7 @@
       if(!S.inited){
         S.inited=true;knowledge();
         S.ai.push({role:'bot',html:fmt('Hi! I am Aima, your AI growth partner at AIM-Ami. Ask me about our services, packages, prices, or free guides!')});
-        setChips(['What services do you offer?','Creator Protection pricing','Free guides','Talk to a person']);
+        setChips(['What services do you offer?','Creator Protection pricing','Free guides','Live Agent']);
         var o=stored();
         if(o&&ready){
           S.chatId=o.id;
