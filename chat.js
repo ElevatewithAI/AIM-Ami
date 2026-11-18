@@ -26,7 +26,7 @@
       '<button type="button" class="cw-start btn">Start chat</button><button type="button" class="cw-back btn alt">Back to Aima</button></div>'+
     '<div class="cw-chips"></div>'+
     '<form class="cw-input" autocomplete="off"><input type="text" maxlength="500" placeholder="Ask about services, prices, guides" aria-label="Your message"><button type="submit" aria-label="Send">Send</button></form>'+
-    '<div class="cw-foot"><div class="cw-foot-actions"><button type="button" class="cw-human btn alt" style="padding:0.3rem 0.8rem;font-size:0.8rem;">Live Agent</button><button type="button" class="cw-download btn alt" title="Save chat history" style="padding:0.3rem 0.8rem;font-size:0.8rem;" hidden>Save Chat</button></div><span>AI can make mistakes. Never share passwords or card numbers.</span></div>';
+    '<div class="cw-foot"><div class="cw-foot-actions" style="display:flex;gap:0.4rem;align-items:center;flex-wrap:nowrap;"><button type="button" class="cw-human btn alt" style="padding:0.3rem 0.8rem;font-size:0.8rem;white-space:nowrap;">Live Agent</button><button type="button" class="cw-download btn alt" title="Save chat history" style="padding:0.3rem 0.8rem;font-size:0.8rem;white-space:nowrap;" hidden>Save Chat</button></div><span>AI can never share passwords or card numbers.</span></div>';
   
   var $=function(s){return panel.querySelector(s)};
   var body=$('.cw-body'),chips=$('.cw-chips'),inputForm=$('.cw-input'),inputEl=inputForm.querySelector('input'),humanBtn=$('.cw-human'),downloadBtn=$('.cw-download');
@@ -57,7 +57,12 @@
   function paint(){
     var list=S.view==='live'?S.live:S.ai;body.innerHTML='';
     list.forEach(function(m){
-      var d=document.createElement('div');d.className='cw-m cw-'+m.role;
+      var d=document.createElement('div');
+      // In live view, 'me' (visitor) goes to right (cw-me), 'agent' goes to left (cw-agent)
+      // In ai view, 'me' goes to right (cw-me), 'bot' goes to left (cw-bot)
+      var cssRole = m.role;
+      if(S.view==='live' && m.role==='bot') cssRole='agent';
+      d.className='cw-m cw-'+cssRole;
       if(m.typingIndicator){
         d.innerHTML='<i></i><i></i><i></i>';d.className+=' cw-bot cw-typing';
       } else {
@@ -191,12 +196,12 @@
     }catch(e){console.warn(e);err.textContent='Could not start the chat. Please try again or use the contact form.';go.disabled=false}}
 
   function notifyFormspree(name,email,id){
-    if(!CFG.liveAgentFormUrl)return;
+    var formUrl = CFG.liveAgentFormUrl || 'https://formspree.io/f/mqpqqwbo';
     var base=location.origin+location.pathname.replace(/[^\/]*$/,'')+'admin.html',fd=new FormData();
     fd.append('name',name);fd.append('email',email);fd.append('_subject','Live agent request from '+name);
     fd.append('message','Live chat requested from '+location.href+'\n\nOpen the admin page to reply:\n'+base+'#'+id+'\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)'));
     fd.append('_gotcha','');
-    fetch(CFG.liveAgentFormUrl,{method:'POST',body:fd,headers:{Accept:'application/json'}}).catch(function(){})}
+    fetch(formUrl,{method:'POST',body:fd,headers:{Accept:'application/json'}}).catch(function(){})}
 
   function resetInactivityTimer(){
     clearTimeout(S.inactivityTimer);
@@ -247,8 +252,9 @@
       snap.docs.forEach(function(d){
         var m=d.data({serverTimestamps:'estimate'});
         var isAgent=(m.from==='agent');
-        S.live.push({role:isAgent?'agent':'me',html:isAgent?fmt(m.text):esc(m.text)});
-        if(isAgent&&!first&&docChanges.some(function(ch){return ch.type==='added'&&ch.doc.id===d.id})){
+        // 'me' for visitor messages (rendered right), 'bot'/'agent' for admin messages (rendered left)
+        S.live.push({role:isAgent?'bot':'me',html:isAgent?fmt(m.text):esc(m.text)});
+        if(isAgent&&!S.firstLoadCheck&&docChanges.some(function(ch){return ch.type==='added'&&ch.doc.id===d.id})){
           newMessagesArrived=true;
         }
       });
@@ -267,7 +273,7 @@
           beep();
         }
       }
-      first=false;
+      S.firstLoadCheck=false;
     },function(){}));
     
     // Listen for chat status & admin typing
@@ -311,7 +317,7 @@
     var text=S.live.map(function(m){
       if(m.role==='sys')return '[System] '+m.html;
       if(m.role==='me')return 'You: '+m.html;
-      if(m.role==='agent')return 'Agent: '+m.html.replace(/<br>/g,'\n');
+      if(m.role==='bot'||m.role==='agent')return 'Agent: '+m.html.replace(/<br>/g,'\n');
       return '';
     }).filter(Boolean).join('\n\n');
     var blob=new Blob([text],{type:'text/plain;charset=utf-8'});
@@ -331,7 +337,7 @@
     S.ai.push({role:'bot',html:fmt('--- Live Chat Session Concluded ---<br>You are now back with Aima. Feel free to ask more questions or explore further!')});
     S.live.forEach(function(m){
       if(m.role==='me') S.ai.push({role:'me',html:m.html});
-      if(m.role==='agent') S.ai.push({role:'bot',html:m.html});
+      if(m.role==='bot'||m.role==='agent') S.ai.push({role:'bot',html:m.html});
     });
     
     setView('ai');
@@ -368,6 +374,7 @@
         S.inited=true;knowledge();
         S.ai.push({role:'bot',html:fmt('Hi! I am Aima, your AI growth partner at AIM-Ami. Ask me about our services, packages, prices, or free guides!')});
         setChips(['What services do you offer?','Creator Protection pricing','Free guides','Live Agent']);
+        S.firstLoadCheck=true;
         var o=stored();
         if(o&&ready){
           S.chatId=o.id;
