@@ -205,24 +205,32 @@
       err.textContent='';go.disabled=false;enterLive()
     }catch(e){console.warn(e);err.textContent='Could not start the chat. Please try again or use the contact form.';go.disabled=false}}
 
-  // Emails the agent through Formspree. Errors are logged to the console instead of silently ignored.
-  function notify(name,email,id){
-    if(!FORM_URL)return;
+  // Emails the agent through Formspree. It uses the same request style as the site's contact form
+  // (multipart form data, only an Accept header), so the browser sends a "simple" request with no CORS preflight.
+  // The result is always logged to the browser console so a failure is never silent.
+  function notify(name,email,id,attempt){
+    attempt=attempt||1;
+    if(!FORM_URL)return Promise.resolve(false);
     var base=location.origin+location.pathname.replace(/[^\/]*$/,'')+'admin.html';
-    var payload={
-      name:name,
-      email:email,
-      _subject:'Live agent request from '+name,
-      message:'Live chat requested from '+location.href+'\n\nOpen the admin page to reply:\n'+base+'#'+id+'\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)')
-    };
-    fetch(FORM_URL,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(payload)})
+    var fd=new FormData();
+    fd.append('name',name);
+    fd.append('email',email);
+    fd.append('_replyto',email);
+    fd.append('_subject','Live agent request from '+name);
+    fd.append('message','Live chat requested from '+location.href+'\n\nOpen the admin page to reply:\n'+base+'#'+id+'\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)'));
+    fd.append('_gotcha','');
+    return fetch(FORM_URL,{method:'POST',body:fd,headers:{Accept:'application/json'}})
       .then(function(r){
-        return r.json().catch(function(){return {}}).then(function(j){
-          if(r.ok&&!j.error)console.info('Formspree: live chat request sent.',j);
-          else console.warn('Formspree did NOT send the email. HTTP '+r.status,j);
-        });
+        return r.text().then(function(txt){
+          var j={};try{j=JSON.parse(txt)}catch(e){}
+          if(r.ok&&!j.error&&!j.errors){console.info('Formspree: live chat request sent (HTTP '+r.status+').',txt);return true}
+          console.warn('Formspree did NOT accept the live chat request. HTTP '+r.status+'. Response:',txt);
+          return false});
       })
-      .catch(function(e){console.warn('Formspree request failed (network, CORS, or blocked by an extension):',e)})}
+      .catch(function(e){
+        console.warn('Formspree request failed (network, CORS, or blocked by an extension):',e);
+        if(attempt<2)return new Promise(function(res){setTimeout(res,1500)}).then(function(){return notify(name,email,id,attempt+1)});
+        return false})}
 
   function onAgentMessage(){
     S.lastMsgAt=Date.now();
