@@ -11,7 +11,7 @@ window.AIM_CONFIG = {
     measurementId: "G-8WKPZ26GHK"
   },
   // App Check (reCAPTCHA v3 site key) keeps other sites from using your Gemini quota and database.
-  appCheck: { provider: "v3", siteKey: "6LdvqCUuAAAAACiv-938_7m-270_-1wFRrgWr1yj", debug: false },
+  appCheck: { provider: "Enterprise", siteKey: "6LdvqCUuAAAAACiv-938_7m-270_-1wFRrgWr1yj", debug: false },
   adminEmail: "aim4ami@gmail.com",
   aiModel: "gemini-2.5-flash",
   liveAgentFormUrl: "https://formspree.io/f/mqpqqwbo",
