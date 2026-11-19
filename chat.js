@@ -7,7 +7,9 @@
   if(!panel||!btn)return;
   var SDK='https://www.gstatic.com/firebasejs/'+(CFG.sdk||'12.15.0')+'/';
   // Formspree endpoint used to email the agent when a visitor starts a live chat.
-  var FORM_URL=CFG.liveAgentFormUrl||'https://formspree.io/f/mqpqqwbo';
+  var FORM_URL='https://formspree.io/f/mqpqqwbo';
+  // Backup: the contact form's Formspree address. Used only if the live agent form is rejected.
+  var FALLBACK_URL='https://formspree.io/f/xnppyqea';
   var S={fb:null,fbP:null,chat:null,know:null,knowP:null,ai:[],live:[],aiCount:0,transcript:[],chatId:null,uid:null,
     agentOnline:false,view:'ai',inited:false,closed:false,unsubs:[],presUnsub:null,busy:false,lastAt:0,lastMsgAt:0,
     typingTimer:null,audio:null,unread:0,liveReady:false,liveActive:false,ending:false,pendingContext:''};
@@ -185,56 +187,66 @@
     $('.cw-err').textContent='';
     if(ready)loadFB().catch(function(){});
     setView('form');setTimeout(function(){$('#cw-name').focus()},50)}
+  function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'))},ms)})])}
+  async function createChat(name,email){
+    var f=await loadFB();
+    if(!f.auth.currentUser)await f.A.signInAnonymously(f.auth);
+    S.uid=f.auth.currentUser.uid;
+    var ref=await f.fs.addDoc(f.fs.collection(f.db,'chats'),{uid:S.uid,name:name,email:email,createdAt:f.fs.serverTimestamp(),lastMessageAt:f.fs.serverTimestamp(),status:'open',unreadAdmin:true,page:(location.pathname.split('/').pop()||'index.html'),aiTranscript:S.transcript.slice(-12).join('\n').slice(0,3500)});
+    return ref.id}
+
   async function begin(){
     var err=$('.cw-err'),name=$('#cw-name').value.trim(),email=$('#cw-email').value.trim(),go=$('.cw-start');
     if($('#cw-hp').value)return;
+    err.style.color='';
     if(name.length<2){err.textContent='Please enter your full name.';return}
-    if(!ready){err.textContent='Live chat is not connected yet. Please use the contact form.';return}
     go.disabled=true;err.textContent='Checking your email...';
     var bad=window.AIMcheckEmail?await window.AIMcheckEmail(email):(/^\S+@\S+\.\S+$/.test(email)?'':'Please enter a valid email address.');
     if(bad){err.textContent=bad;go.disabled=false;return}
     err.textContent='Connecting...';
-    // Notify the admin by email RIGHT NOW. This is independent of Firebase: it is not awaited, and it
-    // still goes out if anonymous sign-in or the database write below fails.
-    notify(name,email);
-    try{
-      var f=await loadFB();
-      if(!f.auth.currentUser)await f.A.signInAnonymously(f.auth);
-      S.uid=f.auth.currentUser.uid;
-      var ref=await f.fs.addDoc(f.fs.collection(f.db,'chats'),{uid:S.uid,name:name,email:email,createdAt:f.fs.serverTimestamp(),lastMessageAt:f.fs.serverTimestamp(),status:'open',unreadAdmin:true,page:(location.pathname.split('/').pop()||'index.html'),aiTranscript:S.transcript.slice(-12).join('\n').slice(0,3500)});
-      S.chatId=ref.id;
-      try{localStorage.setItem('aimChat',JSON.stringify({id:ref.id,t:Date.now(),name:name,email:email}))}catch(e){}
-      err.textContent='';go.disabled=false;enterLive()
-    }catch(e){console.warn(e);err.textContent='Could not start the chat. Please try again or use the contact form.';go.disabled=false}}
+    // Open the chat room. If that fails for any reason, the team is still emailed below.
+    var id=null,fe=null;
+    if(ready){try{id=await withTimeout(createChat(name,email),9000)}catch(e){fe=e;console.warn('Live chat room could not open:',e&&(e.code||e.message)||e)}}
+    else fe=new Error('Firebase is not configured');
+    var sentP=notify(name,email,id,fe);   // email the agent: always sent, whether or not the chat room opened
+    go.disabled=false;
+    if(id){
+      S.chatId=id;
+      try{localStorage.setItem('aimChat',JSON.stringify({id:id,t:Date.now(),name:name,email:email}))}catch(e){}
+      err.textContent='';
+      try{await enterLive();return}catch(e){console.warn(e)}}
+    var sent=await sentP;
+    if(sent){err.style.color='#14161f';err.textContent='Thanks, '+name.split(' ')[0]+'. Live chat is not available right now, but we sent your request to our team and will email you at '+email+' soon.';go.disabled=true;return}
+    err.textContent='Could not start the chat. Please use the contact form or email helloaimami@gmail.com.'}
 
-  // Emails the agent through Formspree. Errors are logged to the console instead of silently ignored.
-  // It does not depend on Firebase at all, and it sends the same kind of request as a normal HTML form
-  // (multipart form data, only an Accept header), exactly like the contact form and newsletter.
-  function notify(name,email,attempt){
-    attempt=attempt||1;
-    if(!FORM_URL)return Promise.resolve(false);
-    // No links in the email body: Formspree's spam filter tends to flag messages that contain URLs.
-    var page=(location.pathname.split('/').pop()||'index.html');
-    var recent=(S.transcript.slice(-12).join('\n')||'(none)').replace(/https?:\/\/\S+/gi,'[link removed]');
-    var fd=new FormData();
-    fd.append('name',name);
-    fd.append('email',email);
-    fd.append('_replyto',email);
-    fd.append('_subject','Live agent request from '+name);
-    fd.append('message',name+' ('+email+') wants to chat live.\n\nPage: '+page+'\n\nTo reply, open your live chat admin page (admin.html on your site), click Go online, and open this visitor in the list.\n\nRecent conversation with Aima:\n'+recent);
-    fd.append('_gotcha','');
-    return fetch(FORM_URL,{method:'POST',body:fd,headers:{Accept:'application/json'}})
-      .then(function(r){
-        return r.text().then(function(txt){
+  // Emails the agent through Formspree. If the live agent form is rejected for any reason, the same message is sent
+  // through the site's contact form, which is known to work, so the agent is always notified.
+  // Every attempt is logged to the browser console.
+  function notify(name,email,id,fe){
+    var base=location.origin+location.pathname.replace(/[^\/]*$/,'')+'admin.html';
+    var urls=[FORM_URL,FALLBACK_URL].filter(Boolean);
+    function build(){
+      var fd=new FormData();
+      fd.append('name',name);fd.append('email',email);fd.append('_replyto',email);
+      fd.append('_subject','Live agent request from '+name);
+      fd.append('message','Live chat requested from '+location.href+'\n\n'+
+        (id?'Open the admin page to reply:\n'+base+'#'+id:'The chat room could not be opened ('+(fe&&(fe.code||fe.message)||'unknown')+'). Please reply to them by email.')+
+        '\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)'));
+      fd.append('_gotcha','');
+      return fd}
+    function post(url,retry){
+      return fetch(url,{method:'POST',body:build(),headers:{Accept:'application/json'}})
+        .then(function(r){return r.text().then(function(txt){
           var j={};try{j=JSON.parse(txt)}catch(e){}
-          if(r.ok&&!j.error&&!j.errors){console.info('Formspree: live chat request sent (HTTP '+r.status+').',txt);return true}
-          console.warn('Formspree did NOT accept the live chat request. HTTP '+r.status+'. Response:',txt);
-          return false});
-      })
-      .catch(function(e){
-        console.warn('Formspree request failed (network, CORS, or blocked by an extension):',e);
-        if(attempt<2)return new Promise(function(res){setTimeout(res,1500)}).then(function(){return notify(name,email,attempt+1)});
-        return false})}
+          if(r.ok&&!j.error&&!j.errors){console.info('Formspree: live chat request sent via '+url+' (HTTP '+r.status+').');return true}
+          console.warn('Formspree did NOT accept the request at '+url+'. HTTP '+r.status+'. Response:',txt);return false})})
+        .catch(function(e){
+          console.warn('Formspree request failed at '+url+' (network, CORS, or an extension blocked it):',e);
+          return retry?false:new Promise(function(res){setTimeout(res,1200)}).then(function(){return post(url,true)})})}
+    function attempt(i){
+      if(i>=urls.length)return Promise.resolve(false);
+      return post(urls[i]).then(function(ok){return ok?true:attempt(i+1)})}
+    return attempt(0)}
 
   function onAgentMessage(){
     S.lastMsgAt=Date.now();
