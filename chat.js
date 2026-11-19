@@ -7,10 +7,8 @@
   if(!panel||!btn)return;
   var SDK='https://www.gstatic.com/firebasejs/'+(CFG.sdk||'12.15.0')+'/';
   // Formspree endpoint used to email the agent when a visitor starts a live chat.
-  var FORM_URL='https://formspree.io/f/mqpqqwbo';
-  // Backup: the contact form's Formspree address. Used only if the live agent form is rejected.
-  var FALLBACK_URL='https://formspree.io/f/xnppyqea';
-  var S={fb:null,fbP:null,chat:null,know:null,knowP:null,ai:[],live:[],aiCount:0,transcript:[],chatId:null,uid:null,
+  var FORM_URL=CFG.liveAgentFormUrl||'https://formspree.io/f/mqpqqwbo';
+  var S={fb:null,fbP:null,chat:null,know:null,knowP:null,ai:[],live:[],aiCount:0,cache:{},aiInst:null,noThink:false,transcript:[],chatId:null,uid:null,
     agentOnline:false,view:'ai',inited:false,closed:false,unsubs:[],presUnsub:null,busy:false,lastAt:0,lastMsgAt:0,
     typingTimer:null,audio:null,unread:0,liveReady:false,liveActive:false,ending:false,pendingContext:''};
   var SYS='You are Aima, the friendly AI assistant on the AIM-Ami website. Answer ONLY from the SITE INFORMATION below. Be warm and concise: at most 4 short sentences, plain language, never use em dashes. '+
@@ -90,8 +88,11 @@
     if((S.view==='ai'&&S.typing)||(S.view==='live'&&S.agentTyping)){var t=document.createElement('div');t.className='cw-m cw-bot cw-typing';t.innerHTML='<i></i><i></i><i></i>';body.appendChild(t)}
     body.scrollTop=body.scrollHeight}
   function addAI(role,text,human){S.ai.push({role:role,text:text,html:role==='me'?esc(text):fmt(text),human:human});paint()}
-  function setChips(list){chips.innerHTML='';(list||[]).slice(0,4).forEach(function(c){var b=document.createElement('button');b.type='button';b.textContent=c;
-    b.onclick=function(){if(/live agent/i.test(c))startHuman();else sendAI(c)};chips.appendChild(b)})}
+  // Suggested prompts. Live agent / live chat options are filtered out because the footer already has that button.
+  function setChips(list){chips.innerHTML='';
+    (list||[]).filter(function(c){return !/live\s*(agent|chat)|talk to (a )?(person|human|agent)|speak to (a )?(person|human|agent)/i.test(c)})
+      .slice(0,4).forEach(function(c){var b=document.createElement('button');b.type='button';b.textContent=c;
+      b.onclick=function(){sendAI(c)};chips.appendChild(b)})}
   function setView(v){S.view=v;panel.setAttribute('data-view',v);
     humanBtn.textContent=v==='live'?'End chat':'Live agent';
     inputEl.placeholder=v==='live'?'Write to our team':'Ask about services, prices, guides';
@@ -106,10 +107,34 @@
     if(S.knowP)return S.knowP;
     S.knowP=fetch('knowledge.json').then(function(r){return r.json()}).then(function(j){S.know=j;return j}).catch(function(){S.know={faq:[]};return S.know});
     return S.knowP}
-  function localAnswer(text){
-    var k=S.know&&S.know.faq||[],q=text.toLowerCase(),best=null,bs=0;
-    k.forEach(function(f){var s=0;(f.keywords||[]).forEach(function(w){if(q.indexOf(w)>-1)s+=w.length>3?2:1});if(s>bs){bs=s;best=f}});
-    return bs>0?best.answer:null}
+  var STOP=/^(the|and|for|you|your|are|can|how|what|does|with|about|have|this|that|from|will|any|get|use|our|not|but|too|who|why|when|where|which|there|their|them|then|than|into|some|just|like|want|need|please|tell|know|much|many)$/;
+  function words(s){return String(s||'').toLowerCase().replace(/[^a-z0-9\s'-]/g,' ').split(/\s+/).filter(Boolean)}
+  function hasKw(q,w){
+    w=String(w||'').toLowerCase().trim();if(!w)return false;
+    // short keywords must match whole words (so "ai" does not match "email"); longer ones also match plurals and endings
+    if(w.length<=3)return new RegExp('(^|[^a-z0-9])'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'([^a-z0-9]|$)').test(q);
+    return q.indexOf(w)>-1}
+  // Searches knowledge.json for the best matches. No AI and no tokens are used here.
+  function localMatch(text){
+    var k=S.know&&S.know.faq||[],q=' '+words(text).join(' ')+' ',qw=words(text).filter(function(w){return w.length>3&&!STOP.test(w)});
+    var scored=k.map(function(f){
+      var s=0;
+      (f.keywords||[]).forEach(function(w){if(hasKw(q,w))s+=String(w).indexOf(' ')>-1?3:(String(w).length>3?2:1)});
+      // small bonus when the visitor uses words from the entry's own question or title, if it has one
+      var title=f.q||f.question||f.title||'';
+      if(title){var bonus=0;words(title).forEach(function(w){if(w.length>3&&!STOP.test(w)&&qw.indexOf(w)>-1)bonus++});s+=Math.min(bonus,3)}
+      return {f:f,s:s}}).filter(function(x){return x.s>0}).sort(function(a,b){return b.s-a.s});
+    var top=scored[0];
+    return {answer:top?top.f.answer:null,score:top?top.s:0,second:scored[1]?scored[1].s:0,top:scored.slice(0,3).map(function(x){return x.f})}}
+  function localAnswer(text){return localMatch(text).answer}
+  // Greetings and thanks never need the AI.
+  function smallTalk(text){
+    var t=String(text).toLowerCase().trim().replace(/[!.?]+$/,'');
+    if(t.split(/\s+/).length>5)return null;
+    if(/^(hi|hello|hey|hiya|howdy|good (morning|afternoon|evening))\b/.test(t))return 'Hi! I am Aima. Ask me about our services, prices, free guides, or events.';
+    if(/^(thanks|thank you|thx|ty|cheers|great thanks|ok thanks|appreciate it)\b/.test(t))return 'You are welcome! Is there anything else I can help with?';
+    if(/^(bye|goodbye|see you|cya)\b/.test(t))return 'Goodbye! Come back any time.';
+    return null}
 
   /* firebase */
   function loadFB(){
@@ -142,42 +167,89 @@
       var d=s.exists()?s.data({serverTimestamps:'estimate'}):null,t=d&&d.lastSeen&&d.lastSeen.toMillis?d.lastSeen.toMillis():0;
       S.agentOnline=!!(d&&d.online&&Date.now()-t<120000);status()},function(){})}
 
-  async function aiSession(){
-    if(S.chat)return S.chat;
-    var f=await loadFB(),know=await knowledge();
+  function getAIModel(f,context){
     var ai=f.ai;
-    var aiInstance=ai.getAI(f.app,{backend:new ai.GoogleAIBackend()});
-    var model=ai.getGenerativeModel(aiInstance,{
-      model:CFG.aiModel||'gemini-2.5-flash',
-      systemInstruction:SYS+JSON.stringify(know),
-      generationConfig:{maxOutputTokens:1200,temperature:.4}
-    });
-    S.chat=model.startChat();return S.chat}
+    S.aiInst=S.aiInst||ai.getAI(f.app,{backend:new ai.GoogleAIBackend()});
+    // Thinking is what makes Gemini Flash slow and costly for simple FAQ answers, so it is off by default.
+    // Set aiThinkingBudget in firebase-config.js to a number above 0 to turn it back on.
+    var gc={maxOutputTokens:CFG.aiMaxOutput||400,temperature:.3};
+    if(!S.noThink)gc.thinkingConfig={thinkingBudget:(CFG.aiThinkingBudget!=null?CFG.aiThinkingBudget:0)};
+    return ai.getGenerativeModel(S.aiInst,{model:CFG.aiModel||'gemini-2.5-flash',systemInstruction:SYS+context,generationConfig:gc})}
+  // Preloads the AI library in the background. It does not call the model, so it costs no tokens.
+  async function aiSession(){return loadFB()}
 
-  /* AI chat */
+  // One stateless request per question: only the relevant knowledge goes in, so far fewer tokens are used
+  // than sending the whole knowledge file and a growing chat history every time. The answer streams in.
+  async function streamAI(prompt,context){
+    var f=await loadFB(),model=getAIModel(f,context),res=await model.generateContentStream(prompt),full='',msg=null;
+    try{
+      for await(var chunk of res.stream){
+        full+=chunk.text();
+        var shown=full.split(/\n\s*(?:SUGGEST:|HANDOFF)/i)[0].trim();
+        if(!shown)continue;
+        if(!msg){msg={role:'bot',text:shown,html:fmt(shown)};S.ai.push(msg);S.typing=false}
+        else{msg.text=shown;msg.html=fmt(shown)}
+        paint();
+      }
+    }catch(e){
+      if(msg){var i=S.ai.indexOf(msg);if(i>-1)S.ai.splice(i,1)}
+      throw e}
+    if(msg){var j=S.ai.indexOf(msg);if(j>-1)S.ai.splice(j,1)}
+    if(!full.trim())throw new Error('empty AI response');
+    return full}
+
+  function aiCalls(){try{return parseInt(sessionStorage.getItem('aimAiCalls')||'0',10)||0}catch(e){return S.aiCount}}
+  function bumpAiCalls(){S.aiCount++;try{sessionStorage.setItem('aimAiCalls',String(aiCalls()+1))}catch(e){}}
+
+  /* Chat flow: 1) knowledge.json, 2) AI only when needed, 3) suggest a live agent */
   async function sendAI(text){
     text=String(text||'').trim().slice(0,500);if(!text||S.busy)return;
     S.lastAt=Date.now();
     addAI('me',text);S.transcript.push('Visitor: '+text);setChips([]);
-    if(S.aiCount>=25){addAI('bot','We have covered a lot. For more help, please talk to a person or use the contact form.',true);return}
-    S.aiCount++;S.busy=true;S.typing=true;paint();
-    // If a live chat just ended, give Aima that conversation as background for this message.
-    var payload=text;
-    if(S.pendingContext){payload='[Background only: the visitor just finished a live chat with a team member. Conversation:\n'+S.pendingContext+'\n]\n'+text;S.pendingContext=''}
+    S.busy=true;S.typing=true;paint();
+    var pending=S.pendingContext;S.pendingContext='';
     try{
       await knowledge();
-      if(!ready)throw new Error('not configured');
-      var c=await aiSession(),r=await c.sendMessage(payload);reply(r.response.text())
+      var key=text.toLowerCase().replace(/[^a-z0-9 ]/g,'').trim();
+      // Step 0: greetings and thanks
+      var st=smallTalk(text);
+      if(st&&!pending){reply(st);return}
+      // Step 1: answer straight from knowledge.json when the match is clear (free and instant)
+      var lm=localMatch(text),limit=CFG.aiInstantScore!=null?CFG.aiInstantScore:4;
+      if(lm.answer&&lm.score>=limit&&lm.score>lm.second&&!pending){reply(lm.answer);return}
+      // Same question asked before in this visit: reuse the earlier answer
+      if(S.cache[key]&&!pending){reply(S.cache[key]);return}
+      // Step 2: use the AI only when the knowledge file could not settle it
+      var maxCalls=CFG.aiMaxCalls!=null?CFG.aiMaxCalls:8;
+      if(!ready||aiCalls()>=maxCalls){
+        if(lm.answer&&lm.score>=2)reply(lm.answer);
+        else reply('I am not sure about that one. A person can help you better.\nHANDOFF');
+        return}
+      // Send only the relevant entries when there is a decent match, otherwise the whole knowledge file.
+      var context=(lm.score>=2&&lm.top.length)?JSON.stringify({faq:lm.top}):JSON.stringify(S.know);
+      // Short follow-up questions ("how much is it?") get the last couple of lines for context.
+      var prompt=text;
+      if(words(text).length<8&&S.transcript.length>1)prompt='Recent conversation:\n'+S.transcript.slice(-5,-1).map(function(l){return l.slice(0,200)}).join('\n')+'\n\nVisitor question: '+text;
+      if(pending)prompt='[Background only: the visitor just finished a live chat with a team member. Conversation:\n'+pending+'\n]\n'+prompt;
+      bumpAiCalls();
+      var full;
+      try{full=await streamAI(prompt,context)}
+      catch(e1){
+        // If the model rejects the thinking setting, retry once without it.
+        if(!S.noThink&&/think/i.test(String(e1&&e1.message))){S.noThink=true;full=await streamAI(prompt,context)}
+        else throw e1}
+      if(!pending&&!/(^|\n)\s*HANDOFF\s*$/i.test(full))S.cache[key]=full;
+      reply(full)
     }catch(e){
       console.warn('AI Error:',e);
-      var la=localAnswer(text);
-      reply(la?la:'I am not sure about that one. A person can help you better.\nHANDOFF')}
-    S.typing=false;S.busy=false;paint()}
+      // Step 3: the AI could not help either, so offer a person
+      reply(lm&&lm.answer&&lm.score>=2?lm.answer:'I am not sure about that one. A person can help you better.\nHANDOFF')
+    }finally{S.typing=false;S.busy=false;paint()}}
   function reply(t){
     var human=/(^|\n)\s*HANDOFF\s*$/i.test(t),sug=t.match(/^SUGGEST:\s*(.+)$/mi);
     var clean=t.replace(/^SUGGEST:.*$/mi,'').replace(/(^|\n)\s*HANDOFF\s*$/i,'').trim();
     S.typing=false;addAI('bot',clean,human);S.transcript.push('Assistant: '+clean.replace(/\s+/g,' ').slice(0,300));
-    setChips(sug?sug[1].split('|').map(function(x){return x.trim()}).filter(Boolean):(human?['Live agent']:[]))}
+    setChips(sug?sug[1].split('|').map(function(x){return x.trim()}).filter(Boolean):[])}
 
   /* live chat */
   var stored=function(){try{var o=JSON.parse(localStorage.getItem('aimChat')||'null');return o&&Date.now()-o.t<864e5?o:null}catch(e){return null}};
@@ -187,66 +259,56 @@
     $('.cw-err').textContent='';
     if(ready)loadFB().catch(function(){});
     setView('form');setTimeout(function(){$('#cw-name').focus()},50)}
-  function withTimeout(p,ms){return Promise.race([p,new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'))},ms)})])}
-  async function createChat(name,email){
-    var f=await loadFB();
-    if(!f.auth.currentUser)await f.A.signInAnonymously(f.auth);
-    S.uid=f.auth.currentUser.uid;
-    var ref=await f.fs.addDoc(f.fs.collection(f.db,'chats'),{uid:S.uid,name:name,email:email,createdAt:f.fs.serverTimestamp(),lastMessageAt:f.fs.serverTimestamp(),status:'open',unreadAdmin:true,page:(location.pathname.split('/').pop()||'index.html'),aiTranscript:S.transcript.slice(-12).join('\n').slice(0,3500)});
-    return ref.id}
-
   async function begin(){
     var err=$('.cw-err'),name=$('#cw-name').value.trim(),email=$('#cw-email').value.trim(),go=$('.cw-start');
     if($('#cw-hp').value)return;
-    err.style.color='';
     if(name.length<2){err.textContent='Please enter your full name.';return}
+    if(!ready){err.textContent='Live chat is not connected yet. Please use the contact form.';return}
     go.disabled=true;err.textContent='Checking your email...';
     var bad=window.AIMcheckEmail?await window.AIMcheckEmail(email):(/^\S+@\S+\.\S+$/.test(email)?'':'Please enter a valid email address.');
     if(bad){err.textContent=bad;go.disabled=false;return}
     err.textContent='Connecting...';
-    // Open the chat room. If that fails for any reason, the team is still emailed below.
-    var id=null,fe=null;
-    if(ready){try{id=await withTimeout(createChat(name,email),9000)}catch(e){fe=e;console.warn('Live chat room could not open:',e&&(e.code||e.message)||e)}}
-    else fe=new Error('Firebase is not configured');
-    var sentP=notify(name,email,id,fe);   // email the agent: always sent, whether or not the chat room opened
-    go.disabled=false;
-    if(id){
-      S.chatId=id;
-      try{localStorage.setItem('aimChat',JSON.stringify({id:id,t:Date.now(),name:name,email:email}))}catch(e){}
-      err.textContent='';
-      try{await enterLive();return}catch(e){console.warn(e)}}
-    var sent=await sentP;
-    if(sent){err.style.color='#14161f';err.textContent='Thanks, '+name.split(' ')[0]+'. Live chat is not available right now, but we sent your request to our team and will email you at '+email+' soon.';go.disabled=true;return}
-    err.textContent='Could not start the chat. Please use the contact form or email helloaimami@gmail.com.'}
+    // Notify the admin by email RIGHT NOW. This is independent of Firebase: it is not awaited, and it
+    // still goes out if anonymous sign-in or the database write below fails.
+    notify(name,email);
+    try{
+      var f=await loadFB();
+      if(!f.auth.currentUser)await f.A.signInAnonymously(f.auth);
+      S.uid=f.auth.currentUser.uid;
+      var ref=await f.fs.addDoc(f.fs.collection(f.db,'chats'),{uid:S.uid,name:name,email:email,createdAt:f.fs.serverTimestamp(),lastMessageAt:f.fs.serverTimestamp(),status:'open',unreadAdmin:true,page:(location.pathname.split('/').pop()||'index.html'),aiTranscript:S.transcript.slice(-12).join('\n').slice(0,3500)});
+      S.chatId=ref.id;
+      try{localStorage.setItem('aimChat',JSON.stringify({id:ref.id,t:Date.now(),name:name,email:email}))}catch(e){}
+      err.textContent='';go.disabled=false;enterLive()
+    }catch(e){console.warn(e);err.textContent='Could not start the chat. Please try again or use the contact form.';go.disabled=false}}
 
-  // Emails the agent through Formspree. If the live agent form is rejected for any reason, the same message is sent
-  // through the site's contact form, which is known to work, so the agent is always notified.
-  // Every attempt is logged to the browser console.
-  function notify(name,email,id,fe){
-    var base=location.origin+location.pathname.replace(/[^\/]*$/,'')+'admin.html';
-    var urls=[FORM_URL,FALLBACK_URL].filter(Boolean);
-    function build(){
-      var fd=new FormData();
-      fd.append('name',name);fd.append('email',email);fd.append('_replyto',email);
-      fd.append('_subject','Live agent request from '+name);
-      fd.append('message','Live chat requested from '+location.href+'\n\n'+
-        (id?'Open the admin page to reply:\n'+base+'#'+id:'The chat room could not be opened ('+(fe&&(fe.code||fe.message)||'unknown')+'). Please reply to them by email.')+
-        '\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)'));
-      fd.append('_gotcha','');
-      return fd}
-    function post(url,retry){
-      return fetch(url,{method:'POST',body:build(),headers:{Accept:'application/json'}})
-        .then(function(r){return r.text().then(function(txt){
+  // Emails the agent through Formspree. Errors are logged to the console instead of silently ignored.
+  // It does not depend on Firebase at all, and it sends the same kind of request as a normal HTML form
+  // (multipart form data, only an Accept header), exactly like the contact form and newsletter.
+  function notify(name,email,attempt){
+    attempt=attempt||1;
+    if(!FORM_URL)return Promise.resolve(false);
+    // No links in the email body: Formspree's spam filter tends to flag messages that contain URLs.
+    var page=(location.pathname.split('/').pop()||'index.html');
+    var recent=(S.transcript.slice(-12).join('\n')||'(none)').replace(/https?:\/\/\S+/gi,'[link removed]');
+    var fd=new FormData();
+    fd.append('name',name);
+    fd.append('email',email);
+    fd.append('_replyto',email);
+    fd.append('_subject','Live agent request from '+name);
+    fd.append('message',name+' ('+email+') wants to chat live.\n\nPage: '+page+'\n\nTo reply, open your live chat admin page (admin.html on your site), click Go online, and open this visitor in the list.\n\nRecent conversation with Aima:\n'+recent);
+    fd.append('_gotcha','');
+    return fetch(FORM_URL,{method:'POST',body:fd,headers:{Accept:'application/json'}})
+      .then(function(r){
+        return r.text().then(function(txt){
           var j={};try{j=JSON.parse(txt)}catch(e){}
-          if(r.ok&&!j.error&&!j.errors){console.info('Formspree: live chat request sent via '+url+' (HTTP '+r.status+').');return true}
-          console.warn('Formspree did NOT accept the request at '+url+'. HTTP '+r.status+'. Response:',txt);return false})})
-        .catch(function(e){
-          console.warn('Formspree request failed at '+url+' (network, CORS, or an extension blocked it):',e);
-          return retry?false:new Promise(function(res){setTimeout(res,1200)}).then(function(){return post(url,true)})})}
-    function attempt(i){
-      if(i>=urls.length)return Promise.resolve(false);
-      return post(urls[i]).then(function(ok){return ok?true:attempt(i+1)})}
-    return attempt(0)}
+          if(r.ok&&!j.error&&!j.errors){console.info('Formspree: live chat request sent (HTTP '+r.status+').',txt);return true}
+          console.warn('Formspree did NOT accept the live chat request. HTTP '+r.status+'. Response:',txt);
+          return false});
+      })
+      .catch(function(e){
+        console.warn('Formspree request failed (network, CORS, or blocked by an extension):',e);
+        if(attempt<2)return new Promise(function(res){setTimeout(res,1500)}).then(function(){return notify(name,email,attempt+1)});
+        return false})}
 
   function onAgentMessage(){
     S.lastMsgAt=Date.now();
@@ -406,8 +468,9 @@
     if(S.inited)return;
     S.inited=true;knowledge();
     S.ai.push({role:'bot',html:fmt('Hi! I am Aima, the AIM-Ami assistant. Ask me about our services, prices, free guides, or events, or talk to a live agent.')});
-    setChips(['What services do you offer?','Creator Protection pricing','Free guides','Live agent']);
-    if(ready)loadFB().catch(function(){})}
+    setChips(['What services do you offer?','Creator Protection pricing','Free guides']);
+    // Warm up Firebase and the AI session now so the first question does not pay the loading time.
+    if(ready)loadFB().then(function(){return aiSession()}).catch(function(){})}
 
   /* events */
   inputForm.addEventListener('submit',function(e){e.preventDefault();var v=inputEl.value;
