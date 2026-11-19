@@ -13,7 +13,7 @@ window.AIM_CONFIG = {
   // App Check (Fraud Defense / reCAPTCHA Enterprise site key) keeps other sites from using your Gemini quota and database.
   appCheck: { provider: "enterprise", siteKey: "6LdvqCUuAAAAACiv-938_7m-270_-1wFRrgWr1yj", debug: false },
   adminEmail: "aim4ami@gmail.com",
-  aiModel: "gemini-3.8-flash",
+  aiModel: "gemini-2.5-flash",
   liveAgentFormUrl: "https://formspree.io/f/mqpqqwbo",
   sdk: "12.15.0"
 };
