@@ -7,7 +7,7 @@
   if(!panel||!btn)return;
   var SDK='https://www.gstatic.com/firebasejs/'+(CFG.sdk||'12.15.0')+'/';
   // Formspree endpoint used to email the agent when a visitor starts a live chat.
-  var FORM_URL='https://formspree.io/f/mqpqqwbo';
+  var FORM_URL=CFG.liveAgentFormUrl||'https://formspree.io/f/mqpqqwbo';
   var S={fb:null,fbP:null,chat:null,know:null,knowP:null,ai:[],live:[],aiCount:0,transcript:[],chatId:null,uid:null,
     agentOnline:false,view:'ai',inited:false,closed:false,unsubs:[],presUnsub:null,busy:false,lastAt:0,lastMsgAt:0,
     typingTimer:null,audio:null,unread:0,liveReady:false,liveActive:false,ending:false,pendingContext:''};
@@ -194,6 +194,9 @@
     var bad=window.AIMcheckEmail?await window.AIMcheckEmail(email):(/^\S+@\S+\.\S+$/.test(email)?'':'Please enter a valid email address.');
     if(bad){err.textContent=bad;go.disabled=false;return}
     err.textContent='Connecting...';
+    // Notify the admin by email RIGHT NOW. This is independent of Firebase: it is not awaited, and it
+    // still goes out if anonymous sign-in or the database write below fails.
+    notify(name,email);
     try{
       var f=await loadFB();
       if(!f.auth.currentUser)await f.A.signInAnonymously(f.auth);
@@ -201,14 +204,13 @@
       var ref=await f.fs.addDoc(f.fs.collection(f.db,'chats'),{uid:S.uid,name:name,email:email,createdAt:f.fs.serverTimestamp(),lastMessageAt:f.fs.serverTimestamp(),status:'open',unreadAdmin:true,page:(location.pathname.split('/').pop()||'index.html'),aiTranscript:S.transcript.slice(-12).join('\n').slice(0,3500)});
       S.chatId=ref.id;
       try{localStorage.setItem('aimChat',JSON.stringify({id:ref.id,t:Date.now(),name:name,email:email}))}catch(e){}
-      notify(name,email,ref.id);
       err.textContent='';go.disabled=false;enterLive()
     }catch(e){console.warn(e);err.textContent='Could not start the chat. Please try again or use the contact form.';go.disabled=false}}
 
-  // Emails the agent through Formspree. It uses the same request style as the site's contact form
-  // (multipart form data, only an Accept header), so the browser sends a "simple" request with no CORS preflight.
-  // The result is always logged to the browser console so a failure is never silent.
-  function notify(name,email,id,attempt){
+  // Emails the agent through Formspree. Errors are logged to the console instead of silently ignored.
+  // It does not depend on Firebase at all, and it sends the same kind of request as a normal HTML form
+  // (multipart form data, only an Accept header), exactly like the contact form and newsletter.
+  function notify(name,email,attempt){
     attempt=attempt||1;
     if(!FORM_URL)return Promise.resolve(false);
     var base=location.origin+location.pathname.replace(/[^\/]*$/,'')+'admin.html';
@@ -217,7 +219,7 @@
     fd.append('email',email);
     fd.append('_replyto',email);
     fd.append('_subject','Live agent request from '+name);
-    fd.append('message','Live chat requested from '+location.href+'\n\nOpen the admin page to reply:\n'+base+'#'+id+'\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)'));
+    fd.append('message',name+' ('+email+') wants to chat live.\n\nPage: '+location.href+'\n\nOpen the admin page, go online and reply:\n'+base+'\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)'));
     fd.append('_gotcha','');
     return fetch(FORM_URL,{method:'POST',body:fd,headers:{Accept:'application/json'}})
       .then(function(r){
@@ -229,7 +231,7 @@
       })
       .catch(function(e){
         console.warn('Formspree request failed (network, CORS, or blocked by an extension):',e);
-        if(attempt<2)return new Promise(function(res){setTimeout(res,1500)}).then(function(){return notify(name,email,id,attempt+1)});
+        if(attempt<2)return new Promise(function(res){setTimeout(res,1500)}).then(function(){return notify(name,email,attempt+1)});
         return false})}
 
   function onAgentMessage(){
