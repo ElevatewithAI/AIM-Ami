@@ -213,13 +213,15 @@
   function notify(name,email,attempt){
     attempt=attempt||1;
     if(!FORM_URL)return Promise.resolve(false);
-    var base=location.origin+location.pathname.replace(/[^\/]*$/,'')+'admin.html';
+    // No links in the email body: Formspree's spam filter tends to flag messages that contain URLs.
+    var page=(location.pathname.split('/').pop()||'index.html');
+    var recent=(S.transcript.slice(-12).join('\n')||'(none)').replace(/https?:\/\/\S+/gi,'[link removed]');
     var fd=new FormData();
     fd.append('name',name);
     fd.append('email',email);
     fd.append('_replyto',email);
     fd.append('_subject','Live agent request from '+name);
-    fd.append('message',name+' ('+email+') wants to chat live.\n\nPage: '+location.href+'\n\nOpen the admin page, go online and reply:\n'+base+'\n\nRecent conversation with Aima:\n'+(S.transcript.slice(-12).join('\n')||'(none)'));
+    fd.append('message',name+' ('+email+') wants to chat live.\n\nPage: '+page+'\n\nTo reply, open your live chat admin page (admin.html on your site), click Go online, and open this visitor in the list.\n\nRecent conversation with Aima:\n'+recent);
     fd.append('_gotcha','');
     return fetch(FORM_URL,{method:'POST',body:fd,headers:{Accept:'application/json'}})
       .then(function(r){
