@@ -38,14 +38,29 @@
   // Blue to match the site (--blue), white ring so it stands out on the dark chat button.
   badge.style.cssText='display:none;position:absolute;top:-8px;right:-8px;min-width:24px;height:24px;padding:0 6px;border-radius:12px;background:var(--blue,#1F4BFF);color:#fff;border:2px solid #fff;font:700 12px/20px Inter,system-ui,sans-serif;text-align:center;box-sizing:border-box;pointer-events:none;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.3)';
   // Re-attach the badge if the page's own script rewrites the button's contents.
-  function ensureBadge(){
-    try{if(getComputedStyle(btn).position==='static')btn.style.position='relative'}catch(e){}
-    if(badge.parentNode!==btn)btn.appendChild(badge)}
+  // The badge lives next to the button (in its fixed-position wrapper), not inside it, so the button's
+  // own animations or script rewriting its contents cannot hide or remove it.
+  function placeBadge(){
+    var host=btn.parentNode||document.body;
+    try{if(host!==document.body&&getComputedStyle(host).position==='static')host.style.position='relative'}catch(e){}
+    if(badge.parentNode!==host)host.appendChild(badge);
+    badge.style.right='auto';
+    badge.style.left=(btn.offsetLeft+btn.offsetWidth-18)+'px';
+    badge.style.top=(btn.offsetTop-10)+'px'}
   function updateBadge(){
-    ensureBadge();
-    if(S.unread>0){badge.textContent=S.unread>99?'99+':String(S.unread);badge.style.display='block';btn.classList.add('cw-unread');btn.setAttribute('aria-label','Chat, '+S.unread+' unread')}
-    else{badge.style.display='none';btn.classList.remove('cw-unread');btn.removeAttribute('aria-label')}}
-  ensureBadge();
+    var dot=btn.querySelector('.chat-dot');
+    if(S.unread>0){
+      placeBadge();
+      badge.textContent=S.unread>99?'99+':String(S.unread);badge.style.display='block';
+      btn.classList.add('cw-unread');btn.setAttribute('aria-label','Chat, '+S.unread+' unread');
+      if(dot)dot.style.display='none'}
+    else{
+      badge.style.display='none';btn.classList.remove('cw-unread');btn.removeAttribute('aria-label');
+      if(dot)dot.style.display=''}}
+  placeBadge();
+  window.addEventListener('resize',function(){if(S.unread>0)placeBadge()});
+  // Console test: type AIMtestBadge() to check that the badge and sound work on your page.
+  window.AIMtestBadge=function(){S.unread++;updateBadge();beep()};
   // Clear the count when the visitor comes back to the tab with the chat open.
   function seen(){if(panel.classList.contains('open')&&S.view==='live'&&!document.hidden)clearUnread()}
   document.addEventListener('visibilitychange',seen);
@@ -289,13 +304,14 @@
     if(!FORM_URL)return Promise.resolve(false);
     // No links in the email body: Formspree's spam filter tends to flag messages that contain URLs.
     var page=(location.pathname.split('/').pop()||'index.html');
-    var recent=(S.transcript.slice(-12).join('\n')||'(none)').replace(/https?:\/\/\S+/gi,'[link removed]');
     var fd=new FormData();
     fd.append('name',name);
     fd.append('email',email);
     fd.append('_replyto',email);
     fd.append('_subject','Live agent request from '+name);
-    fd.append('message',name+' ('+email+') wants to chat live.\n\nPage: '+page+'\n\nTo reply, open your live chat admin page (admin.html on your site), click Go online, and open this visitor in the list.\n\nRecent conversation with Aima:\n'+recent);
+    // Only the form contents go in the email (no AI conversation, no links). The full chat is saved in Firestore
+    // and can be read in the admin page under "Conversation with Aima before the chat started".
+    fd.append('message',name+' ('+email+') wants to chat live. Open your admin page and go online to reply.');
     fd.append('_gotcha','');
     return fetch(FORM_URL,{method:'POST',body:fd,headers:{Accept:'application/json'}})
       .then(function(r){
@@ -350,7 +366,8 @@
           snap.docChanges().forEach(function(ch){
             if(ch.type!=='added')return;
             var m=ch.doc.data({serverTimestamps:'estimate'});
-            if(m.from==='agent')onAgentMessage();
+            // admin.html saves replies as from:'admin', so count anything that is not the visitor's own message
+            if(m.from!=='visitor')onAgentMessage();
           });
         }
         S.liveReady=true;
