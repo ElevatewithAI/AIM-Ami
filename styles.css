@@ -404,29 +404,17 @@ footer .social a:hover{background:var(--blue);border-color:var(--blue);color:#ff
 .qname{color:inherit;text-decoration:underline;text-decoration-color:var(--yellow);text-decoration-thickness:2px;text-underline-offset:3px;transition:color .2s}
 .qname:hover{color:var(--blue)}.quote:hover .qname{text-decoration-color:#fff}.quote:hover .qname:hover{color:#fff;text-decoration-color:var(--yellow)}
 
+/* Testimonials: grayscale headshots, aligned cards, linked names */
+.av img{filter:grayscale(1)}
+.quote{display:flex;flex-direction:column}
+.quote .who{margin-top:auto}
+.quote p+p{margin-top:-.2rem}
+.track{align-items:flex-start}
 
-
-.cw-foot-actions { display: flex; gap: 0.5rem; align-items: center; }
-.cw-save { background: #fff; color: var(--ink); border: 1px solid var(--line); font-size: 0.8rem; padding: 0.3rem 0.7rem; border-radius: 999px; }
-.cw-save:hover { background: var(--grey); }
-
-/* ===== Append this to the END of styles.css ===== */
-
-/* Footer: buttons on ONE line, disclaimer on its own single line underneath */
-.cw-foot{flex-direction:column;align-items:stretch;gap:.45rem;padding:.5rem .9rem .75rem}
-.cw-foot-actions{display:flex;flex-wrap:nowrap;align-items:center;gap:.5rem}
-.cw-human,.cw-save{flex:0 0 auto;white-space:nowrap;font:600 .78rem 'Inter',sans-serif;line-height:1.2;padding:.3rem .8rem;border:1.5px solid var(--ink);border-radius:999px;background:none;color:var(--ink);cursor:pointer;transition:background .2s,color .2s,border-color .2s}
-.cw-human:hover,.cw-save:hover{background:var(--blue);border-color:var(--blue);color:#fff}
-.cw-foot span{display:block;white-space:nowrap;font-size:.68rem;color:#777}
-@media(max-width:560px){.cw-foot span{display:block}}
-
-/* Unread badge: blue, matches the site; hide the yellow dot while it shows */
-.cw-badge{background:var(--blue)!important;color:#fff!important}
-.chat-btn.cw-unread .chat-dot{display:none}
-
-/* ===== Append this to the END of styles.css ===== */
-
-/* Links inside chat messages: blue (matches the site), darker blue on hover */
-.cw-m a,.cw-bot a,.cw-agent a{color:var(--blue)!important;font-weight:600;text-decoration:underline;text-decoration-color:var(--blue);text-decoration-thickness:1.5px;text-underline-offset:2px}
-.cw-m a:hover,.cw-bot a:hover,.cw-agent a:hover{color:var(--navy)!important;text-decoration-color:var(--navy)}
-
+/* Hero discovery call CTA */
+.hero .social{margin:1.1rem 0 1rem}
+.hero-cta{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.6rem 1.1rem}
+.hero-cta span{font-size:.85rem;color:#555;max-width:30ch;text-align:left;line-height:1.35}
+@media(max-width:560px){.hero-cta{flex-direction:column}.hero-cta span{text-align:center;max-width:none}}
+.hero{padding-bottom:2.2rem}
+@media(max-width:560px){.hero{padding-top:3rem}}
