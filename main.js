@@ -19,6 +19,37 @@
     return Promise.race([look,timeout]).then(function(r){return r==='bad'?'That email domain does not appear to receive mail. Please check the address.':''});
   };
 })();
+
+(function(){
+  // Sends a form to each endpoint in AIM_CONFIG.forms in order, until one accepts it:
+  // 1) your Google Apps Script (no monthly cap), then 2) Formspree as a backup.
+  function params(o){var p=new URLSearchParams();Object.keys(o).forEach(function(k){if(o[k]!=null)p.append(k,o[k])});return p}
+  function viaScript(url,kind,fields){
+    var o={kind:kind};Object.keys(fields).forEach(function(k){o[k]=fields[k]});
+    return fetch(url,{method:'POST',body:params(o)}).then(function(r){
+      return r.text().then(function(t){var j=null;try{j=JSON.parse(t)}catch(e){}
+        if(!(j&&j.ok))console.warn('Form script did not accept the submission. HTTP '+r.status,t.slice(0,200));
+        return !!(j&&j.ok)})},
+      function(e){console.warn('Form script could not be reached or read (check it is deployed to "Anyone"):',e);return false})}
+  function viaFormspree(url,fields){
+    var fd=new FormData();Object.keys(fields).forEach(function(k){fd.append(k,fields[k])});
+    return fetch(url,{method:'POST',body:fd,headers:{Accept:'application/json'}}).then(function(r){
+      return r.text().then(function(t){var j={};try{j=JSON.parse(t)}catch(e){}
+        if(r.ok&&!j.error&&!j.errors)return true;
+        console.warn('Formspree did not accept the submission at '+url+'. HTTP '+r.status,t.slice(0,200));return false})},
+      function(e){console.warn('Formspree request failed:',e);return false})}
+  window.AIMsend=function(kind,fields,fallback){
+    var F=(window.AIM_CONFIG||{}).forms||{},list=[];
+    if(F.script)list.push({s:1,u:F.script});
+    [].concat(F[kind]||[],fallback||[]).forEach(function(u){if(u&&!list.some(function(x){return x.u===u}))list.push({s:0,u:u})});
+    var i=0;
+    function next(){
+      if(i>=list.length)return Promise.resolve({ok:false});
+      var it=list[i++];
+      return (it.s?viaScript(it.u,kind,fields):viaFormspree(it.u,fields)).then(function(ok){return ok?{ok:true,via:it.s?'script':it.u}:next()})}
+    return next()};
+})();
+
 (function(){
   // mobile menu
   var b=document.querySelector('.burger'),l=document.querySelector('.links');
@@ -38,9 +69,12 @@
     window.AIMcheckEmail(em.value).then(function(err){
       if(err){s.textContent=err;em.setAttribute('aria-invalid','true');em.focus();return}
       em.removeAttribute('aria-invalid');s.textContent='Sending...';
-      fetch(f.action,{method:'POST',body:new FormData(f),headers:{Accept:'application/json'}})
-        .then(function(r){if(r.ok){f.reset();s.textContent='Thanks. Your message is in and we will reply soon.'}else{s.textContent='Something went wrong. Email helloaimami@gmail.com instead.'}})
-        .catch(function(){s.textContent='Network issue. Email helloaimami@gmail.com instead.'})})})}
+      var fd=new FormData(f),fields={};fd.forEach(function(v,k){if(k!=='_gotcha')fields[k]=v});
+      if(fd.get('_gotcha')){f.reset();s.textContent='Thanks. Your message is in and we will reply soon.';return}
+      fields.page=location.pathname.split('/').pop()||'index.html';
+      window.AIMsend('contact',fields,f.action).then(function(r){
+        if(r.ok){f.reset();s.textContent='Thanks. Your message is in and we will reply soon.'}
+        else{s.textContent='Something went wrong. Email helloaimami@gmail.com instead.'}})})})}
   // chatbot placeholder toggle
   var cb=document.querySelector('.chat-btn'),cp=document.querySelector('.chat-panel');
   if(cb){cb.addEventListener('click',function(){cp.classList.toggle('open')})}
@@ -74,9 +108,11 @@
       window.AIMcheckEmail(em.value).then(function(err){
         if(err){st.textContent=err;em.focus();return}
         st.textContent='Subscribing...';
-        fetch(f.action,{method:'POST',body:new FormData(f),headers:{Accept:'application/json'}}).then(function(r){
+        var fd=new FormData(f);
+        if(fd.get('_gotcha')){f.reset();st.textContent='You are in. Thanks for subscribing.';return}
+        window.AIMsend('newsletter',{email:em.value.trim(),subject:'Newsletter sign-up',page:location.pathname.split('/').pop()||'index.html'},f.action).then(function(r){
           if(r.ok){f.reset();st.textContent='You are in. Thanks for subscribing.';try{localStorage.setItem('nlDoneAt',Date.now())}catch(e){}set('nlSeen',true);if(modal&&!modal.hidden)setTimeout(close,1800)}
-          else{st.textContent='Something went wrong. Email helloaimami@gmail.com instead.'}}).catch(function(){st.textContent='Network issue. Please try again.'})})})});
+          else{st.textContent='Something went wrong. Email helloaimami@gmail.com instead.'}})})})});
 })();
 
 (function(){
@@ -169,7 +205,7 @@
   function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
   function obstacles(){
     var r=c.getBoundingClientRect();obs=[];
-    ['.head','h1','.social','.hint'].forEach(function(s){var el=hero.querySelector(s);if(!el)return;var b=el.getBoundingClientRect();
+    ['.head','h1','.social','.hero-cta'].forEach(function(s){var el=hero.querySelector(s);if(!el)return;var b=el.getBoundingClientRect();
       obs.push({x0:b.left-r.left-8,x1:b.right-r.left+8,y0:b.top-r.top-8,y1:b.bottom-r.top+8})})}
   function inside(px,py,mg){for(var i=0;i<obs.length;i++){var o=obs[i];if(px>o.x0-mg&&px<o.x1+mg&&py>o.y0-mg&&py<o.y1+mg)return o}return null}
   function layout(){
