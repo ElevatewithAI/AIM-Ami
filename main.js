@@ -196,7 +196,7 @@
   };
   // group (0 build, 1 protect, 2 learn), label, icon, where a click goes
   var ICONS=[
-    [0,'AI architecture','chip',{panel:1}],[0,'Prompt engineering','spark',{panel:1}],[0,'App improvement','code',{panel:1}],[0,'Workflow automation','flow',{panel:1}],[0,'Messaging automation','chat',{panel:1}],
+    [0,'AI architecture','chip',{panel:1}],[0,'Prompt engineering','spark',{panel:1}],[0,'Implementation guidance','code',{panel:1}],[0,'Workflow automation','flow',{panel:1}],[0,'Messaging automation','chat',{panel:1}],
     [1,'Account protection','shield',{panel:2}],[1,'Access reviews','lock',{panel:3}],[1,'Credential safety','key',{panel:2}],[1,'Phishing guidance','mail',{panel:3}],[1,'Handle security','at',{panel:2}],
     [2,'AI courses','cap',{href:'shop.html#courses'}],[2,'Free guides','book',{href:'shop.html#freebies'}],[2,'Video lessons','play',{id:'learn'}],[2,'Workshops','cal',{id:'events'}],[2,'Webinars and podcast','mic',{id:'events'}]
   ];
@@ -205,7 +205,7 @@
   function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
   function obstacles(){
     var r=c.getBoundingClientRect();obs=[];
-    ['.head','h1','.social','.hero-cta'].forEach(function(s){var el=hero.querySelector(s);if(!el)return;var b=el.getBoundingClientRect();
+    ['.head','.founder','h1','.social','.hero-cta'].forEach(function(s){var el=hero.querySelector(s);if(!el)return;var b=el.getBoundingClientRect();
       obs.push({x0:b.left-r.left-8,x1:b.right-r.left+8,y0:b.top-r.top-8,y1:b.bottom-r.top+8})})}
   function inside(px,py,mg){for(var i=0;i<obs.length;i++){var o=obs[i];if(px>o.x0-mg&&px<o.x1+mg&&py>o.y0-mg&&py<o.y1+mg)return o}return null}
   function layout(){
@@ -314,4 +314,20 @@
   t.querySelector('.chat-teaser-x').addEventListener('click',hide);
   t.querySelector('span').addEventListener('click',function(){hide();btn.click()});
   btn.addEventListener('click',hide);
+})();
+
+(function(){
+  // Hero call button: hover (or first tap) shows the fee details in yellow, the next click goes to the form
+  var a=document.querySelector('.cta-call');if(!a)return;
+  var t=null;
+  function open(){a.classList.add('open')}
+  function close(){a.classList.remove('open');clearTimeout(t)}
+  a.addEventListener('pointerenter',function(e){if(e.pointerType==='mouse')open()});
+  a.addEventListener('pointerleave',function(e){if(e.pointerType==='mouse')close()});
+  a.addEventListener('focus',function(){if(a.matches(':focus-visible'))open()});
+  a.addEventListener('blur',close);
+  a.addEventListener('click',function(e){
+    if(!a.classList.contains('open')){e.preventDefault();open();clearTimeout(t);t=setTimeout(close,5000);return}
+    close()});
+  document.addEventListener('pointerdown',function(e){if(!a.contains(e.target))close()});
 })();
