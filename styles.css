@@ -411,10 +411,28 @@ footer .social a:hover{background:var(--blue);border-color:var(--blue);color:#ff
 .quote p+p{margin-top:-.2rem}
 .track{align-items:flex-start}
 
-/* Hero discovery call CTA */
+/* Hero discovery call CTA: blue, turns yellow with details on hover or first tap */
 .hero .social{margin:1.1rem 0 1rem}
-.hero-cta{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.6rem 1.1rem}
-.hero-cta span{font-size:.85rem;color:#555;max-width:30ch;text-align:left;line-height:1.35}
-@media(max-width:560px){.hero-cta{flex-direction:column}.hero-cta span{text-align:center;max-width:none}}
+.hero-cta{display:flex;justify-content:center}
+.cta-call{display:inline-grid;place-items:center;min-width:min(100%,20.5rem);padding:.85rem 1.8rem;border-radius:999px;border:2px solid var(--blue);background:var(--blue);color:#fff;font:600 1rem 'Inter',sans-serif;line-height:1.3;text-decoration:none;cursor:pointer;transition:background .25s,border-color .25s,color .25s,transform .2s}
+.cta-call span{grid-area:1/1;transition:opacity .2s;text-align:center}
+.cta-b{opacity:0}
+.cta-call.open{background:var(--yellow);border-color:var(--yellow);color:#000;transform:translateY(-2px)}
+.cta-call.open .cta-a{opacity:0}.cta-call.open .cta-b{opacity:1}
 .hero{padding-bottom:2.2rem}
 @media(max-width:560px){.hero{padding-top:3rem}}
+
+/* Hero: founder name and smaller headline */
+.hero .head{margin-bottom:1rem}
+.founder{margin:0 0 .5rem;line-height:1.3}
+.founder b{display:block;font:700 1.3rem 'Space Grotesk',sans-serif;color:var(--ink);letter-spacing:-.01em}
+.founder span{display:block;font-size:.95rem;color:#444}
+.founder em{font-style:normal}
+.hero h1{font-size:clamp(1.7rem,3.6vw,2.7rem)}
+/* Meet the founder */
+.bio-head{padding-top:4.5rem}
+.bio{padding-top:1.8rem}
+.lead.one{max-width:none;font-size:clamp(1rem,1.5vw,1.2rem);color:#333}
+.bio p{font-size:1rem}
+.hero{padding-top:3.4rem}
+.hero .social{margin:.9rem 0 .9rem}
